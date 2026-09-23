@@ -1,5 +1,5 @@
+
 using System;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -26,6 +26,10 @@ namespace backend.Controllers
             _jwtService = jwtService;
         }
 
+        // =========================
+        // REGISTER REQUEST
+        // =========================
+
         public class UserRegisterRequest
         {
             public string Name { get; set; } = string.Empty;
@@ -33,11 +37,20 @@ namespace backend.Controllers
             public string Password { get; set; } = string.Empty;
         }
 
+        // =========================
+        // LOGIN REQUEST
+        // =========================
+
         public class UserLoginRequest
         {
             public string Email { get; set; } = string.Empty;
             public string Password { get; set; } = string.Empty;
         }
+
+        // =========================
+        // REGISTER
+        // POST: /auth/register
+        // =========================
 
         [HttpPost("register")]
         public async Task<IActionResult> Register(
@@ -53,7 +66,7 @@ namespace backend.Controllers
                 });
             }
 
-            var email = request.Email.Trim().ToLower();
+            var email = request.Email.Trim().ToLowerInvariant();
 
             var existingUser = await _context.Users
                 .AnyAsync(u => u.Email.ToLower() == email);
@@ -66,13 +79,19 @@ namespace backend.Controllers
                 });
             }
 
-            string passwordHash = HashPassword(request.Password);
+            var passwordHash = HashPassword(request.Password);
 
+            // Normal public registration creates a Patient.
+            // Doctor, Nurse and Security Admin accounts should
+            // be created by an authorized administrator.
             var newUser = new User
             {
                 Name = request.Name.Trim(),
                 Email = email,
                 PasswordHash = passwordHash,
+                Role = "Patient",
+                Department = "",
+                Status = "Active",
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -83,9 +102,15 @@ namespace backend.Controllers
             {
                 message = $"Welcome {newUser.Name}!",
                 email = newUser.Email,
+                role = newUser.Role,
                 status = "Registration Successful"
             });
         }
+
+        // =========================
+        // LOGIN
+        // POST: /auth/login
+        // =========================
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(
@@ -100,7 +125,7 @@ namespace backend.Controllers
                 });
             }
 
-            var email = request.Email.Trim().ToLower();
+            var email = request.Email.Trim().ToLowerInvariant();
 
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Email.ToLower() == email);
@@ -123,20 +148,29 @@ namespace backend.Controllers
                 });
             }
 
+            // Generate JWT containing the user's identity and role.
             var token = _jwtService.GenerateToken(user);
 
             return Ok(new
             {
                 message = "Login successful.",
                 token = token,
+
                 user = new
                 {
                     id = user.Id,
                     name = user.Name,
-                    email = user.Email
+                    email = user.Email,
+                    role = user.Role,
+                    department = user.Department,
+                    status = user.Status
                 }
             });
         }
+
+        // =========================
+        // PASSWORD HASHING
+        // =========================
 
         private static string HashPassword(string password)
         {

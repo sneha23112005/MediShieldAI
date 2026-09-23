@@ -1,3 +1,4 @@
+
 using System.Security.Cryptography;
 using System.Text;
 using backend.Data;
@@ -13,6 +14,14 @@ namespace backend.Controllers
     public class UsersController : ControllerBase
     {
         private readonly MediShieldContext _context;
+
+        private static readonly string[] AllowedRoles =
+        {
+            "Security Admin",
+            "Doctor",
+            "Nurse",
+            "Patient"
+        };
 
         public UsersController(MediShieldContext context)
         {
@@ -81,7 +90,16 @@ namespace backend.Controllers
                 });
             }
 
-            var email = request.Email.Trim().ToLower();
+            // Validate role
+            if (!AllowedRoles.Contains(request.Role))
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid role. Allowed roles are Security Admin, Doctor, Nurse, and Patient."
+                });
+            }
+
+            var email = request.Email.Trim().ToLowerInvariant();
 
             if (await _context.Users.AnyAsync(u => u.Email == email))
             {
@@ -98,7 +116,9 @@ namespace backend.Controllers
                 PasswordHash = HashPassword(request.Password),
                 Role = request.Role,
                 Department = request.Department,
-                Status = request.Status,
+                Status = string.IsNullOrWhiteSpace(request.Status)
+                    ? "Active"
+                    : request.Status,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -139,7 +159,25 @@ namespace backend.Controllers
                 });
             }
 
-            var email = request.Email.Trim().ToLower();
+            if (string.IsNullOrWhiteSpace(request.Name) ||
+                string.IsNullOrWhiteSpace(request.Email))
+            {
+                return BadRequest(new
+                {
+                    message = "Name and email are required."
+                });
+            }
+
+            // Validate role
+            if (!AllowedRoles.Contains(request.Role))
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid role. Allowed roles are Security Admin, Doctor, Nurse, and Patient."
+                });
+            }
+
+            var email = request.Email.Trim().ToLowerInvariant();
 
             if (await _context.Users.AnyAsync(
                 u => u.Email == email && u.Id != id))
@@ -154,7 +192,9 @@ namespace backend.Controllers
             user.Email = email;
             user.Role = request.Role;
             user.Department = request.Department;
-            user.Status = request.Status;
+            user.Status = string.IsNullOrWhiteSpace(request.Status)
+                ? "Active"
+                : request.Status;
 
             if (!string.IsNullOrWhiteSpace(request.Password))
             {

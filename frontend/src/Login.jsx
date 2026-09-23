@@ -1,10 +1,15 @@
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./Login.css";
 import MediShieldLogo from "./MediShieldLogo";
 
 function Login({ onLogin }) {
   const sceneRef = useRef(null);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const scene = sceneRef.current;
@@ -21,15 +26,8 @@ function Login({ onLogin }) {
       scene.querySelectorAll("[data-depth]").forEach((element) => {
         const depth = Number(element.dataset.depth);
 
-        element.style.setProperty(
-          "--move-x",
-          `${x * depth}px`
-        );
-
-        element.style.setProperty(
-          "--move-y",
-          `${y * depth}px`
-        );
+        element.style.setProperty("--move-x", `${x * depth}px`);
+        element.style.setProperty("--move-y", `${y * depth}px`);
       });
     };
 
@@ -40,9 +38,68 @@ function Login({ onLogin }) {
     };
   }, []);
 
-  const handleSubmit = (e) => {
+  // =========================================
+  // LOGIN
+  // =========================================
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onLogin();
+
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        "http://localhost:5252/auth/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim(),
+            password,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Invalid email or password."
+        );
+      }
+
+      if (!data.token || !data.user) {
+        throw new Error(
+          "Login succeeded, but user information was not returned by the server."
+        );
+      }
+
+      // Save JWT
+      localStorage.setItem("token", data.token);
+
+      // Save current logged-in user
+      localStorage.setItem(
+        "user",
+        JSON.stringify(data.user)
+      );
+
+      console.log("Logged-in user:", data.user);
+      console.log("User role:", data.user.role);
+
+      // Send user information to App.jsx
+      onLogin(data.user);
+    } catch (err) {
+      console.error("Login error:", err);
+
+      setError(
+        err.message || "Unable to connect to the server."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -51,9 +108,9 @@ function Login({ onLogin }) {
       {/* =========================================
           3D CYBER ENVIRONMENT
       ========================================== */}
+
       <div className="cyber-scene" ref={sceneRef}>
 
-        {/* Ambient Glow */}
         <div
           className="ambient-glow glow-one"
           data-depth="18"
@@ -72,6 +129,7 @@ function Login({ onLogin }) {
         <div className="cyber-grid" />
 
         {/* Rotating Rings */}
+
         <div
           className="orbit orbit-one"
           data-depth="18"
@@ -90,6 +148,7 @@ function Login({ onLogin }) {
         {/* =====================================
             3D MEDICAL SHIELD
         ====================================== */}
+
         <div
           className="shield-3d"
           data-depth="40"
@@ -105,7 +164,7 @@ function Login({ onLogin }) {
               </div>
 
               <div className="shield-ecg">
-                ─╱╲╱╲╲╱╲─
+                ─▒▓▒▓▓▒▓─
               </div>
 
             </div>
@@ -118,6 +177,7 @@ function Login({ onLogin }) {
         {/* =====================================
             PARTICLES
         ====================================== */}
+
         <div className="particle particle-1" data-depth="25" />
         <div className="particle particle-2" data-depth="-20" />
         <div className="particle particle-3" data-depth="35" />
@@ -132,6 +192,7 @@ function Login({ onLogin }) {
         {/* =====================================
             SECURITY NODES
         ====================================== */}
+
         <div
           className="data-node node-one"
           data-depth="20"
@@ -159,6 +220,7 @@ function Login({ onLogin }) {
         {/* =====================================
             SECURITY HUD
         ====================================== */}
+
         <div
           className="floating-hud hud-left"
           data-depth="18"
@@ -184,14 +246,16 @@ function Login({ onLogin }) {
         </div>
 
         {/* ECG */}
+
         <div
           className="medical-pulse"
           data-depth="20"
         >
-          ──╱╲──╱╲╱╲──╱╲──
+          ──▒▓──▒▓▒▓──▒▓──
         </div>
 
         {/* System Status */}
+
         <div
           className="system-status"
           data-depth="15"
@@ -201,12 +265,12 @@ function Login({ onLogin }) {
         </div>
 
         <div className="scan-line" />
-
       </div>
 
       {/* =========================================
           BRANDING
       ========================================== */}
+
       <div className="auth-visual">
         <div className="visual-brand">
           <MediShieldLogo />
@@ -216,16 +280,16 @@ function Login({ onLogin }) {
       {/* =========================================
           LOGIN
       ========================================== */}
+
       <div className="auth-container">
+
         <div className="auth-card">
 
-          {/* Security Status */}
           <div className="card-security">
             <span className="card-security-dot" />
             SECURE CHANNEL ESTABLISHED
           </div>
 
-          {/* Header */}
           <div className="auth-header">
 
             <div className="login-brand">
@@ -241,17 +305,35 @@ function Login({ onLogin }) {
               <h2>Welcome Back</h2>
 
               <p>
-                Access the healthcare security command center
+                Access your secure healthcare portal
               </p>
 
             </div>
 
           </div>
 
-          {/* Login Form */}
+          {/* Error */}
+
+          {error && (
+            <div
+              style={{
+                marginBottom: "16px",
+                padding: "12px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 80, 80, 0.4)",
+                background: "rgba(255, 50, 50, 0.08)",
+                color: "#ff7b7b",
+                fontSize: "13px",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
 
             {/* Email */}
+
             <div className="input-group">
 
               <label htmlFor="email">
@@ -269,6 +351,10 @@ function Login({ onLogin }) {
                   type="email"
                   placeholder="security@hospital.com"
                   autoComplete="email"
+                  value={email}
+                  onChange={(e) =>
+                    setEmail(e.target.value)
+                  }
                   required
                 />
 
@@ -277,6 +363,7 @@ function Login({ onLogin }) {
             </div>
 
             {/* Password */}
+
             <div className="input-group">
 
               <label htmlFor="password">
@@ -294,6 +381,10 @@ function Login({ onLogin }) {
                   type="password"
                   placeholder="Enter secure password"
                   autoComplete="current-password"
+                  value={password}
+                  onChange={(e) =>
+                    setPassword(e.target.value)
+                  }
                   required
                 />
 
@@ -302,6 +393,7 @@ function Login({ onLogin }) {
             </div>
 
             {/* Form Options */}
+
             <div className="form-options">
 
               <label className="remember">
@@ -327,22 +419,25 @@ function Login({ onLogin }) {
             </div>
 
             {/* Login Button */}
+
             <button
               className="auth-button"
               type="submit"
+              disabled={loading}
             >
               <span>
-                ENTER COMMAND CENTER
+                {loading
+                  ? "AUTHENTICATING..."
+                  : "ENTER SECURE PORTAL"}
               </span>
 
-              <b>
-                →
-              </b>
+              <b>→</b>
             </button>
 
           </form>
 
           {/* Divider */}
+
           <div className="divider">
             <span>
               SECURE CHANNEL
@@ -350,6 +445,7 @@ function Login({ onLogin }) {
           </div>
 
           {/* Security Footer */}
+
           <div className="security-footer">
 
             <span>
@@ -367,6 +463,7 @@ function Login({ onLogin }) {
           </div>
 
         </div>
+
       </div>
 
     </div>

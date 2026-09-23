@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import "./App.css";
 import Login from "./Login";
@@ -6,460 +5,2172 @@ import MediShieldLogo from "./MediShieldLogo";
 
 const API_BASE_URL = "http://localhost:5252/api";
 
-const emptyUserForm = {
-  name: "",
-  email: "",
-  password: "",
-  role: "SOC Analyst",
-  department: "Security Operations",
-  status: "Active",
-};
-
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: "▦" },
-  {
-    id: "vulnerabilities",
-    label: "Vulnerabilities",
-    icon: "◈",
-    count: 27,
-  },
-  {
-    id: "threat-intelligence",
-    label: "Threat Intelligence",
-    icon: "◎",
-  },
-  {
-    id: "security-events",
-    label: "Security Events",
-    icon: "⌁",
-    count: 18,
-  },
-  { id: "users", label: "Users", icon: "♙" },
-  { id: "audit-logs", label: "Audit Logs", icon: "☷" },
-];
-
 function App() {
-  const [authenticated, setAuthenticated] = useState(true);
-  const [activePage, setActivePage] = useState("dashboard");
+  // ==========================================
+  // AUTHENTICATION
+  // ==========================================
 
-  const [users, setUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [apiError, setApiError] = useState("");
+  const [authenticated, setAuthenticated] = useState(() => {
+    return !!localStorage.getItem("token");
+  });
 
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
+  // ==========================================
+  // CURRENT USER
+  // ==========================================
 
-  const [userForm, setUserForm] = useState(emptyUserForm);
-  const [savingUser, setSavingUser] = useState(false);
-  const [deletingUserId, setDeletingUserId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("user");
 
-  const [dashboardData, setDashboardData] = useState({
+      if (savedUser) {
+        return JSON.parse(savedUser);
+      }
+    } catch (error) {
+      console.error("Unable to restore logged-in user:", error);
+    }
+
+    return null;
+  });
+
+  // ==========================================
+  // ROLE DEFINITIONS
+  // ==========================================
+
+  const userRole = currentUser?.role || "";
+
+  const isSecurityUser =
+    userRole === "Security Admin" ||
+    userRole === "SOC Analyst" ||
+    userRole === "Security Analyst" ||
+    userRole === "Forensic Analyst" ||
+    userRole === "Administrator" ||
+    userRole === "Admin";
+
+  const isDoctor = userRole === "Doctor";
+  const isNurse = userRole === "Nurse";
+  const isPatient = userRole === "Patient";
+
+  // ==========================================
+  // DASHBOARD DATA
+  // ==========================================
+
+  const [dashboard, setDashboard] = useState({
     securityScore: 0,
     criticalThreats: 0,
     vulnerabilities: 0,
     securityEvents: 0,
+    totalUsers: 0,
+    activeUsers: 0,
+    administrators: 0,
+    criticalVulnerabilities: 0,
+    highVulnerabilities: 0,
+    activeVulnerabilities: 0,
+    lastUpdated: null,
   });
 
-  useEffect(() => {
-    fetchUsers();
-    fetchDashboard();
-  }, []);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
 
-  async function fetchUsers() {
-    setLoadingUsers(true);
-    setApiError("");
+  // ==========================================
+  // NAVIGATION
+  // ==========================================
 
+  const [activePage, setActivePage] = useState("Dashboard");
+
+  // ==========================================
+  // USER MANAGEMENT
+  // ==========================================
+
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [users, setUsers] = useState([]);
+
+  const [newUser, setNewUser] = useState({
+    name: "",
+    email: "",
+    role: "SOC Analyst",
+    department: "",
+    status: "Active",
+  });
+
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userError, setUserError] = useState("");
+
+  // ==========================================
+  // DASHBOARD FETCH
+  // ==========================================
+
+  const fetchDashboard = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/users`);
+      setLoadingDashboard(true);
+      setDashboardError("");
 
-      if (!response.ok) {
-        throw new Error("Failed to load users.");
-      }
-
-      const data = await response.json();
-
-      setUsers(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Users API error:", error);
-
-      setApiError(
-        "Unable to connect to the Users API. Make sure the backend is running on port 5252."
-      );
-    } finally {
-      setLoadingUsers(false);
-    }
-  }
-
-  async function fetchDashboard() {
-    try {
       const response = await fetch(`${API_BASE_URL}/dashboard`);
 
       if (!response.ok) {
-        return;
+        throw new Error(`Dashboard API returned ${response.status}`);
       }
 
       const data = await response.json();
 
-      setDashboardData((current) => ({
-        securityScore:
-          data.securityScore ??
-          data.SecurityScore ??
-          current.securityScore,
+      console.log("REAL DASHBOARD DATA:", data);
 
-        criticalThreats:
-          data.criticalThreats ??
-          data.CriticalThreats ??
-          current.criticalThreats,
+      setDashboard({
+        securityScore: data.securityScore ?? 0,
+        criticalThreats: data.criticalThreats ?? 0,
+        vulnerabilities: data.vulnerabilities ?? 0,
+        securityEvents: data.securityEvents ?? 0,
+        totalUsers: data.totalUsers ?? 0,
+        activeUsers: data.activeUsers ?? 0,
+        administrators: data.administrators ?? 0,
+        criticalVulnerabilities:
+          data.criticalVulnerabilities ?? 0,
+        highVulnerabilities:
+          data.highVulnerabilities ?? 0,
+        activeVulnerabilities:
+          data.activeVulnerabilities ?? 0,
+        lastUpdated: data.lastUpdated ?? null,
+      });
+    } catch (error) {
+      console.error("Dashboard error:", error);
 
-        vulnerabilities:
-          data.vulnerabilities ??
-          data.Vulnerabilities ??
-          current.vulnerabilities,
-
-        securityEvents:
-          data.securityEvents ??
-          data.SecurityEvents ??
-          current.securityEvents,
-      }));
-    } catch {
-      console.log(
-        "Dashboard API unavailable. Using dashboard defaults."
+      setDashboardError(
+        "Unable to load live dashboard data from MediShield API."
       );
+    } finally {
+      setLoadingDashboard(false);
     }
-  }
+  };
 
-  function handleLogin() {
-    setAuthenticated(true);
-  }
+  // ==========================================
+  // USERS FETCH
+  // ==========================================
 
-  function handleLogout() {
-    setAuthenticated(false);
-  }
+  const fetchUsers = async () => {
+    try {
+      setUsersLoading(true);
+      setUserError("");
 
-  function handleNavigation(page) {
-    setActivePage(page);
-    setApiError("");
-  }
+      const response = await fetch(`${API_BASE_URL}/users`);
 
-  function openAddUserModal() {
-    setUserForm(emptyUserForm);
-    setSelectedUser(null);
-    setShowAddModal(true);
-  }
+      if (!response.ok) {
+        throw new Error(`Users API returned ${response.status}`);
+      }
 
-  function openEditUserModal(user) {
-    setSelectedUser(user);
+      const data = await response.json();
 
-    setUserForm({
-      name: user.name || "",
-      email: user.email || "",
-      password: "",
+      console.log("REAL USERS DATA:", data);
+
+      if (Array.isArray(data)) {
+        setUsers(data);
+      } else {
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error("Users error:", error);
+
+      setUserError(
+        "Unable to load users from the MediShield API."
+      );
+
+      setUsers([]);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  // ==========================================
+  // INITIAL DATA LOAD
+  // ==========================================
+
+  useEffect(() => {
+    if (!authenticated) return;
+
+    fetchDashboard();
+    fetchUsers();
+  }, [authenticated]);
+
+  // ==========================================
+  // USER FORM
+  // ==========================================
+
+  const resetUserForm = () => {
+    setNewUser({
+      name: "",
+      email: "",
+      role: "SOC Analyst",
+      department: "",
+      status: "Active",
+    });
+
+    setEditingUserId(null);
+    setUserError("");
+  };
+
+  const openAddUser = () => {
+    resetUserForm();
+    setShowAddUser(true);
+  };
+
+  const openEditUser = (user) => {
+    setEditingUserId(user.id);
+
+    setNewUser({
+      name: user.name ?? "",
+      email: user.email ?? "",
       role: user.role || "SOC Analyst",
-      department: user.department || "Security Operations",
+      department: user.department ?? "",
       status: user.status || "Active",
     });
 
-    setShowEditModal(true);
-  }
+    setUserError("");
+    setShowAddUser(true);
+  };
 
-  function closeModals() {
-    if (savingUser) return;
+  // ==========================================
+  // CREATE USER
+  // ==========================================
 
-    setShowAddModal(false);
-    setShowEditModal(false);
-    setSelectedUser(null);
-    setUserForm(emptyUserForm);
-  }
+  const handleAddUser = async (e) => {
+    e.preventDefault();
 
-  function handleInputChange(event) {
-    const { name, value } = event.target;
-
-    setUserForm((current) => ({
-      ...current,
-      [name]: value,
-    }));
-  }
-
-  async function handleAddUser(event) {
-    event.preventDefault();
-
-    if (!userForm.name.trim() || !userForm.email.trim()) {
+    if (!newUser.name || !newUser.email || !newUser.department) {
+      setUserError("Please complete all required fields.");
       return;
     }
 
-    setSavingUser(true);
-    setApiError("");
-
     try {
+      setUserError("");
+
       const response = await fetch(`${API_BASE_URL}/users`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: userForm.name.trim(),
-          email: userForm.email.trim(),
-          password: userForm.password,
-          role: userForm.role,
-          department: userForm.department,
-          status: userForm.status,
-        }),
+        body: JSON.stringify(newUser),
       });
 
-      const responseText = await response.text();
-
       if (!response.ok) {
-        let message = "Failed to create user.";
-
-        try {
-          const errorData = JSON.parse(responseText);
-
-          message =
-            errorData.message ||
-            errorData.title ||
-            errorData.detail ||
-            message;
-        } catch {
-          if (responseText) {
-            message = responseText;
-          }
-        }
-
-        throw new Error(message);
+        const errorText = await response.text();
+        throw new Error(
+          errorText || "Failed to create user."
+        );
       }
 
-      closeModals();
-      await fetchUsers();
+      const createdUser = await response.json();
+
+      setUsers((previousUsers) => [
+        ...previousUsers,
+        createdUser,
+      ]);
+
+      resetUserForm();
+      setShowAddUser(false);
+
+      await fetchDashboard();
     } catch (error) {
       console.error("Create user error:", error);
-      setApiError(error.message || "Failed to create user.");
-    } finally {
-      setSavingUser(false);
+
+      setUserError(
+        error.message || "Unable to create user."
+      );
     }
-  }
+  };
 
-  async function handleEditUser(event) {
-    event.preventDefault();
+  // ==========================================
+  // UPDATE USER
+  // ==========================================
 
-    if (!selectedUser) return;
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
 
-    setSavingUser(true);
-    setApiError("");
+    if (!editingUserId) return;
+
+    if (!newUser.name || !newUser.email || !newUser.department) {
+      setUserError("Please complete all required fields.");
+      return;
+    }
 
     try {
-      const updatePayload = {
-        name: userForm.name.trim(),
-        email: userForm.email.trim(),
-        role: userForm.role,
-        department: userForm.department,
-        status: userForm.status,
-      };
-
-      if (userForm.password.trim()) {
-        updatePayload.password = userForm.password;
-      }
+      setUserError("");
 
       const response = await fetch(
-        `${API_BASE_URL}/users/${selectedUser.id}`,
+        `${API_BASE_URL}/users/${editingUserId}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(updatePayload),
+          body: JSON.stringify(newUser),
         }
       );
 
-      const responseText = await response.text();
-
       if (!response.ok) {
-        let message = "Failed to update user.";
+        const errorText = await response.text();
 
-        try {
-          const errorData = JSON.parse(responseText);
-
-          message =
-            errorData.message ||
-            errorData.title ||
-            errorData.detail ||
-            message;
-        } catch {
-          if (responseText) {
-            message = responseText;
-          }
-        }
-
-        throw new Error(message);
+        throw new Error(
+          errorText || "Failed to update user."
+        );
       }
 
-      closeModals();
-      await fetchUsers();
+      const updatedUser = await response.json();
+
+      setUsers((previousUsers) =>
+        previousUsers.map((user) =>
+          user.id === editingUserId
+            ? updatedUser
+            : user
+        )
+      );
+
+      resetUserForm();
+      setShowAddUser(false);
+
+      await fetchDashboard();
     } catch (error) {
       console.error("Update user error:", error);
-      setApiError(error.message || "Failed to update user.");
-    } finally {
-      setSavingUser(false);
-    }
-  }
 
-  async function handleDeleteUser(user) {
+      setUserError(
+        error.message || "Unable to update user."
+      );
+    }
+  };
+
+  // ==========================================
+  // DELETE USER
+  // ==========================================
+
+  const handleDeleteUser = async (id) => {
     const confirmed = window.confirm(
-      `Are you sure you want to delete ${user.name}?`
+      "Remove this user from the MediShield access directory?"
     );
 
     if (!confirmed) return;
 
-    setDeletingUserId(user.id);
-    setApiError("");
-
     try {
+      setUserError("");
+
       const response = await fetch(
-        `${API_BASE_URL}/users/${user.id}`,
+        `${API_BASE_URL}/users/${id}`,
         {
           method: "DELETE",
         }
       );
 
-      const responseText = await response.text();
-
       if (!response.ok) {
-        let message = "Failed to delete user.";
+        const errorText = await response.text();
 
-        try {
-          const errorData = JSON.parse(responseText);
-
-          message =
-            errorData.message ||
-            errorData.title ||
-            errorData.detail ||
-            message;
-        } catch {
-          if (responseText) {
-            message = responseText;
-          }
-        }
-
-        throw new Error(message);
+        throw new Error(
+          errorText || "Failed to delete user."
+        );
       }
 
-      await fetchUsers();
+      setUsers((previousUsers) =>
+        previousUsers.filter((user) => user.id !== id)
+      );
+
+      await fetchDashboard();
     } catch (error) {
       console.error("Delete user error:", error);
-      setApiError(error.message || "Failed to delete user.");
-    } finally {
-      setDeletingUserId(null);
+
+      setUserError(
+        error.message || "Unable to delete user."
+      );
     }
+  };
+
+  // ==========================================
+  // LOGOUT
+  // ==========================================
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    setAuthenticated(false);
+    setCurrentUser(null);
+    setActivePage("Dashboard");
+
+    resetUserForm();
+    setShowAddUser(false);
+  };
+
+  // ==========================================
+  // LOGIN
+  // ==========================================
+
+  if (!authenticated) {
+    return (
+      <Login
+        onLogin={(user) => {
+          console.log("Authenticated user:", user);
+          console.log("User role:", user?.role);
+
+          setCurrentUser(user);
+          setAuthenticated(true);
+          setActivePage("Dashboard");
+        }}
+      />
+    );
   }
 
-  const totalUsers = users.length;
+  // ==========================================
+  // NAVIGATION MENU
+  // ==========================================
+
+  let menuItems = [];
+
+  if (isSecurityUser) {
+    menuItems = [
+      {
+        name: "Dashboard",
+        icon: "⌂",
+      },
+      {
+        name: "Vulnerabilities",
+        icon: "⚠",
+        count: dashboard.vulnerabilities,
+      },
+      {
+        name: "Threat Intelligence",
+        icon: "◈",
+      },
+      {
+        name: "Security Events",
+        icon: "◉",
+        count: dashboard.securityEvents,
+      },
+      {
+        name: "Users",
+        icon: "♙",
+        count: dashboard.totalUsers,
+      },
+      {
+        name: "Audit Logs",
+        icon: "▤",
+      },
+    ];
+  }
+
+  if (isDoctor) {
+    menuItems = [
+      {
+        name: "Dashboard",
+        icon: "⌂",
+      },
+      {
+        name: "My Patients",
+        icon: "♙",
+      },
+      {
+        name: "Medical History",
+        icon: "▤",
+      },
+      {
+        name: "Medications",
+        icon: "✚",
+      },
+      {
+        name: "Appointments",
+        icon: "◷",
+      },
+    ];
+  }
+
+  if (isNurse) {
+    menuItems = [
+      {
+        name: "Dashboard",
+        icon: "⌂",
+      },
+      {
+        name: "Today's Appointments",
+        icon: "◷",
+      },
+      {
+        name: "Patients",
+        icon: "♙",
+      },
+      {
+        name: "Book Appointment",
+        icon: "＋",
+      },
+    ];
+  }
+
+  if (isPatient) {
+    menuItems = [
+      {
+        name: "Dashboard",
+        icon: "⌂",
+      },
+      {
+        name: "My Medical History",
+        icon: "▤",
+      },
+      {
+        name: "My Medications",
+        icon: "✚",
+      },
+      {
+        name: "Appointment History",
+        icon: "◷",
+      },
+      {
+        name: "Book Appointment",
+        icon: "＋",
+      },
+    ];
+  }
+
+  // ==========================================
+  // USER STATS
+  // ==========================================
 
   const activeUsers = users.filter(
-    (user) => user.status?.toLowerCase() === "active"
+    (user) => user.status === "Active"
   ).length;
 
   const disabledUsers = users.filter(
-    (user) => user.status?.toLowerCase() === "disabled"
+    (user) => user.status === "Disabled"
   ).length;
 
-  const administrators = users.filter(
-    (user) => user.role?.toLowerCase() === "security admin"
+  const adminUsers = users.filter(
+    (user) =>
+      user.role === "Security Admin" ||
+      user.role === "Administrator" ||
+      user.role === "Admin"
   ).length;
 
-  const currentPageLabel =
-    navItems.find((item) => item.id === activePage)?.label ||
-    "Dashboard";
+  // ==========================================
+  // SECURITY SCORE LABEL
+  // ==========================================
 
-  if (!authenticated) {
-    return <Login onLogin={handleLogin} />;
-  }
+  const getScoreStatus = (score) => {
+    if (score >= 90) return "SECURE";
+    if (score >= 75) return "GOOD";
+    if (score >= 50) return "ATTENTION";
 
-  return (
-    <div className="app-shell">
+    return "AT RISK";
+  };
 
-      {/* ================= SIDEBAR ================= */}
+  // ==========================================
+  // SECURITY DASHBOARD
+  // ==========================================
 
-      <aside className="sidebar">
-        <div className="sidebar-top">
+  const renderDashboard = () => {
+    const score = Number(dashboard.securityScore) || 0;
 
-          <div className="sidebar-brand">
-            <MediShieldLogo size={44} />
+    return (
+      <>
+        <div className="page-heading dashboard-heading">
+          <div>
+            <div className="page-kicker">
+              MEDISHIELD AI // SECURITY OPERATIONS
+            </div>
 
-            <div className="brand-text">
-              <div className="brand-name">
-                MEDISHIELD{" "}
-                <span className="brand-ai">AI</span>
+            <h1>Security Command Center</h1>
+
+            <p>
+              Real-time visibility into healthcare security
+              posture, threats, vulnerabilities and operational
+              activity.
+            </p>
+          </div>
+
+          <div className="system-live">
+            <span className="live-dot"></span>
+            SYSTEM OPERATIONAL
+          </div>
+        </div>
+
+        {dashboardError && (
+          <div className="api-alert">
+            <span className="api-alert-icon">!</span>
+
+            <div>
+              <strong>LIVE API CONNECTION ISSUE</strong>
+              <small>{dashboardError}</small>
+            </div>
+          </div>
+        )}
+
+        {/* PRIMARY SECURITY METRICS */}
+
+        <div className="dashboard-cards">
+
+          <div className="security-card score-card">
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  SECURITY POSTURE
+                </span>
+
+                <small>
+                  Overall environment score
+                </small>
               </div>
 
-              <div className="brand-subtitle">
-                SECURITY OPERATIONS
+              <span className="card-icon">◈</span>
+            </div>
+
+            <div className="score-layout">
+              <div
+                className="score-ring"
+                style={{
+                  "--score": `${Math.min(score, 100) * 3.6}deg`,
+                }}
+              >
+                <div className="score-ring-inner">
+                  <strong>
+                    {loadingDashboard ? "--" : score}
+                  </strong>
+
+                  {!loadingDashboard && (
+                    <span>%</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="score-details">
+                <strong>
+                  {getScoreStatus(score)}
+                </strong>
+
+                <span>
+                  Healthcare infrastructure
+                </span>
+
+                <div className="mini-progress">
+                  <div
+                    style={{
+                      width: `${Math.min(score, 100)}%`,
+                    }}
+                  ></div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="command-center-label">
+          <div className="security-card danger-card">
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  CRITICAL THREATS
+                </span>
+
+                <small>
+                  Immediate investigation
+                </small>
+              </div>
+
+              <span className="card-icon">⚠</span>
+            </div>
+
+            <div className="metric-value">
+              {loadingDashboard
+                ? "--"
+                : dashboard.criticalThreats}
+            </div>
+
+            <div className="metric-footer danger">
+              <span className="metric-status-dot"></span>
+              ACTIVE SECURITY THREATS
+            </div>
+          </div>
+
+          <div className="security-card warning-card">
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  VULNERABILITIES
+                </span>
+
+                <small>
+                  Across protected systems
+                </small>
+              </div>
+
+              <span className="card-icon">△</span>
+            </div>
+
+            <div className="metric-value">
+              {loadingDashboard
+                ? "--"
+                : dashboard.vulnerabilities}
+            </div>
+
+            <div className="metric-footer warning">
+              <span className="metric-status-dot"></span>
+              {dashboard.highVulnerabilities} HIGH PRIORITY
+            </div>
+          </div>
+
+          <div className="security-card event-card">
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  SECURITY EVENTS
+                </span>
+
+                <small>
+                  Monitored by platform
+                </small>
+              </div>
+
+              <span className="card-icon">◉</span>
+            </div>
+
+            <div className="metric-value">
+              {loadingDashboard
+                ? "--"
+                : dashboard.securityEvents}
+            </div>
+
+            <div className="metric-footer blue">
+              <span className="metric-status-dot"></span>
+              EVENTS MONITORED
+            </div>
+          </div>
+        </div>
+
+        {/* OPERATIONAL SNAPSHOT */}
+
+        <div className="section-heading">
+          <div>
+            <span>OPERATIONAL SNAPSHOT</span>
+
+            <small>
+              Database-backed platform statistics
+            </small>
+          </div>
+        </div>
+
+        <div className="user-stats">
+
+          <div className="user-stat">
+            <div className="stat-symbol">♙</div>
+
+            <div>
+              <span>TOTAL USERS</span>
+
+              <strong>
+                {loadingDashboard
+                  ? "--"
+                  : dashboard.totalUsers}
+              </strong>
+            </div>
+          </div>
+
+          <div className="user-stat">
+            <div className="stat-symbol success">
+              ●
+            </div>
+
+            <div>
+              <span>ACTIVE USERS</span>
+
+              <strong>
+                {loadingDashboard
+                  ? "--"
+                  : dashboard.activeUsers}
+              </strong>
+            </div>
+          </div>
+
+          <div className="user-stat">
+            <div className="stat-symbol blue">
+              ◆
+            </div>
+
+            <div>
+              <span>ADMINISTRATORS</span>
+
+              <strong>
+                {loadingDashboard
+                  ? "--"
+                  : dashboard.administrators}
+              </strong>
+            </div>
+          </div>
+
+          <div className="user-stat">
+            <div className="stat-symbol warning">
+              !
+            </div>
+
+            <div>
+              <span>HIGH VULNERABILITIES</span>
+
+              <strong>
+                {loadingDashboard
+                  ? "--"
+                  : dashboard.highVulnerabilities}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        {/* SOC MONITORING */}
+
+        <div className="section-heading monitoring-heading">
+          <div>
             <span>SECURITY OPERATIONS</span>
-            <strong>COMMAND CENTER</strong>
+
+            <small>
+              Current threat and infrastructure posture
+            </small>
+          </div>
+
+          <div className="live-pill">
+            <span></span>
+            LIVE MONITORING
+          </div>
+        </div>
+
+        <div className="dashboard-grid">
+
+          {/* THREAT MONITOR */}
+
+          <div className="dashboard-panel threat-panel">
+
+            <div className="panel-header">
+              <div>
+                <span className="panel-label">
+                  THREAT MONITOR
+                </span>
+
+                <h2>Security Activity</h2>
+
+                <p>
+                  Live security indicators from the
+                  MediShield platform
+                </p>
+              </div>
+
+              <span className="panel-live">
+                LIVE
+              </span>
+            </div>
+
+            <div className="threat-list">
+
+              <div className="threat-row">
+                <div className="threat-indicator warning">
+                  ◉
+                </div>
+
+                <div className="threat-content">
+                  <strong>Security Events</strong>
+
+                  <small>
+                    {dashboard.securityEvents} event
+                    {dashboard.securityEvents !== 1
+                      ? "s"
+                      : ""}{" "}
+                    currently recorded
+                  </small>
+                </div>
+
+                <div className="threat-value">
+                  {dashboard.securityEvents}
+                </div>
+              </div>
+
+              <div className="threat-row">
+                <div className="threat-indicator danger">
+                  ⚠
+                </div>
+
+                <div className="threat-content">
+                  <strong>Critical Threats</strong>
+
+                  <small>
+                    Security incidents requiring
+                    investigation
+                  </small>
+                </div>
+
+                <div className="threat-value danger-text">
+                  {dashboard.criticalThreats}
+                </div>
+              </div>
+
+              <div className="threat-row">
+                <div className="threat-indicator warning">
+                  △
+                </div>
+
+                <div className="threat-content">
+                  <strong>
+                    Active Vulnerabilities
+                  </strong>
+
+                  <small>
+                    Identified weaknesses across
+                    protected systems
+                  </small>
+                </div>
+
+                <div className="threat-value warning-text">
+                  {dashboard.activeVulnerabilities}
+                </div>
+              </div>
+
+              <div className="threat-row">
+                <div className="threat-indicator blue">
+                  ◈
+                </div>
+
+                <div className="threat-content">
+                  <strong>
+                    High Priority Vulnerabilities
+                  </strong>
+
+                  <small>
+                    Issues requiring security team
+                    attention
+                  </small>
+                </div>
+
+                <div className="threat-value blue-text">
+                  {dashboard.highVulnerabilities}
+                </div>
+              </div>
+
+            </div>
+
+            <div className="panel-footer">
+              <span className="footer-dot"></span>
+              Monitoring API telemetry
+            </div>
+          </div>
+
+          {/* INFRASTRUCTURE */}
+
+          <div className="dashboard-panel status-panel">
+
+            <div className="panel-header">
+              <div>
+                <span className="panel-label">
+                  INFRASTRUCTURE
+                </span>
+
+                <h2>System Health</h2>
+
+                <p>
+                  Protected healthcare environment
+                </p>
+              </div>
+            </div>
+
+            <div className="system-health">
+
+              <div className="health-item">
+                <div className="health-icon">⌁</div>
+
+                <div>
+                  <strong>Hospital Network</strong>
+                  <small>Core infrastructure</small>
+                </div>
+
+                <span className="health-online">
+                  ONLINE
+                </span>
+              </div>
+
+              <div className="health-item">
+                <div className="health-icon">▣</div>
+
+                <div>
+                  <strong>Patient Database</strong>
+                  <small>Protected storage</small>
+                </div>
+
+                <span className="health-online">
+                  SECURE
+                </span>
+              </div>
+
+              <div className="health-item">
+                <div className="health-icon">◇</div>
+
+                <div>
+                  <strong>Endpoint Protection</strong>
+                  <small>Managed devices</small>
+                </div>
+
+                <span className="health-online">
+                  ACTIVE
+                </span>
+              </div>
+
+              <div className="health-item">
+                <div className="health-icon">◈</div>
+
+                <div>
+                  <strong>Threat Intelligence</strong>
+                  <small>Security intelligence</small>
+                </div>
+
+                <span className="health-online">
+                  SYNCED
+                </span>
+              </div>
+
+            </div>
+
+            <div className="infrastructure-footer">
+              <span className="footer-dot"></span>
+              Environment monitoring active
+            </div>
+          </div>
+        </div>
+
+        {dashboard.lastUpdated && (
+          <div className="last-updated">
+            <span>LAST API SYNCHRONIZATION</span>
+
+            {new Date(
+              dashboard.lastUpdated
+            ).toLocaleString()}
+          </div>
+        )}
+      </>
+    );
+  };
+
+  // ==========================================
+  // USERS PAGE
+  // ==========================================
+
+  const renderUsers = () => {
+    return (
+      <>
+        <div className="page-heading">
+
+          <div>
+            <div className="page-kicker">
+              MEDISHIELD AI // ACCESS CONTROL
+            </div>
+
+            <h1>User Management</h1>
+
+            <p>
+              Manage authorized personnel and security
+              access across the healthcare environment.
+            </p>
+          </div>
+
+          <button
+            className="primary-action"
+            onClick={openAddUser}
+          >
+            + ADD USER
+          </button>
+        </div>
+
+        <div className="user-stats">
+
+          <div className="user-stat">
+            <div className="stat-symbol">♙</div>
+
+            <div>
+              <span>TOTAL USERS</span>
+
+              <strong>
+                {dashboard.totalUsers || users.length}
+              </strong>
+            </div>
+          </div>
+
+          <div className="user-stat">
+            <div className="stat-symbol success">
+              ●
+            </div>
+
+            <div>
+              <span>ACTIVE</span>
+
+              <strong>
+                {dashboard.activeUsers || activeUsers}
+              </strong>
+            </div>
+          </div>
+
+          <div className="user-stat">
+            <div className="stat-symbol danger">
+              ×
+            </div>
+
+            <div>
+              <span>DISABLED</span>
+
+              <strong>{disabledUsers}</strong>
+            </div>
+          </div>
+
+          <div className="user-stat">
+            <div className="stat-symbol blue">
+              ◆
+            </div>
+
+            <div>
+              <span>ADMINISTRATORS</span>
+
+              <strong>
+                {dashboard.administrators || adminUsers}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="dashboard-panel users-panel">
+
+          <div className="panel-header users-header">
+
+            <div>
+              <span className="panel-label">
+                AUTHORIZED PERSONNEL
+              </span>
+
+              <h2>Security Access Directory</h2>
+
+              <p>
+                Users currently registered in PostgreSQL
+              </p>
+            </div>
+
+            <span className="user-count">
+              {users.length} USERS
+            </span>
+          </div>
+
+          {userError && (
+            <div className="inline-error">
+              <strong>USER OPERATION ERROR</strong>
+              <span>{userError}</span>
+            </div>
+          )}
+
+          {usersLoading && (
+            <div className="loading-state">
+              <span className="loading-ring"></span>
+              Loading security directory...
+            </div>
+          )}
+
+          <div className="users-table-wrapper">
+
+            <table className="users-table">
+
+              <thead>
+                <tr>
+                  <th>USER</th>
+                  <th>ROLE</th>
+                  <th>DEPARTMENT</th>
+                  <th>STATUS</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+
+              <tbody>
+
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan="5">
+                      <div className="empty-table">
+                        <strong>
+                          No users found
+                        </strong>
+
+                        <span>
+                          No security users are currently
+                          registered.
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  users.map((user) => (
+                    <tr key={user.id}>
+
+                      <td>
+                        <div className="user-info">
+
+                          <div className="user-avatar">
+                            {(user.name || "?")
+                              .charAt(0)
+                              .toUpperCase()}
+                          </div>
+
+                          <div>
+                            <strong>
+                              {user.name}
+                            </strong>
+
+                            <small>
+                              {user.email}
+                            </small>
+                          </div>
+
+                        </div>
+                      </td>
+
+                      <td>
+                        <span className="role-badge">
+                          {user.role || "Not Assigned"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className="department-cell">
+                          {user.department ||
+                            "Not Assigned"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span
+                          className={`status-badge ${
+                            user.status === "Active"
+                              ? "active"
+                              : user.status === "Disabled"
+                                ? "disabled"
+                                : "unknown"
+                          }`}
+                        >
+                          <span></span>
+                          {user.status || "Unknown"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <div className="table-actions">
+
+                          <button
+                            className="edit-button"
+                            onClick={() =>
+                              openEditUser(user)
+                            }
+                          >
+                            EDIT
+                          </button>
+
+                          <button
+                            className="delete-button"
+                            onClick={() =>
+                              handleDeleteUser(user.id)
+                            }
+                          >
+                            DELETE
+                          </button>
+
+                        </div>
+                      </td>
+
+                    </tr>
+                  ))
+                )}
+
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  // ==========================================
+  // SECURITY MODULE PLACEHOLDER
+  // ==========================================
+
+  const renderModule = (title, description, icon) => {
+    return (
+      <>
+        <div className="page-heading">
+
+          <div>
+            <div className="page-kicker">
+              MEDISHIELD AI // SECURITY MODULE
+            </div>
+
+            <h1>{title}</h1>
+
+            <p>{description}</p>
+          </div>
+
+          <div className="module-status">
+            <span></span>
+            MODULE ONLINE
+          </div>
+        </div>
+
+        <div className="module-placeholder">
+
+          <div className="module-icon">
+            {icon}
+          </div>
+
+          <div>
+            <span className="module-kicker">
+              SECURITY OPERATIONS MODULE
+            </span>
+
+            <h2>{title}</h2>
+
+            <p>
+              This module is ready for backend integration.
+              Data controls and operational workflows will be
+              connected as the platform expands.
+            </p>
+
+            <div className="module-progress">
+              <span>INTEGRATION STATUS</span>
+
+              <div>
+                <i></i>
+              </div>
+
+              <strong>IN DEVELOPMENT</strong>
+            </div>
+          </div>
+
+        </div>
+      </>
+    );
+  };
+
+  // ==========================================
+  // DOCTOR DASHBOARD
+  // ==========================================
+
+  const renderDoctorDashboard = () => {
+    return (
+      <>
+        <div className="page-heading">
+
+          <div>
+            <div className="page-kicker">
+              MEDISHIELD AI // CLINICAL OPERATIONS
+            </div>
+
+            <h1>Doctor Dashboard</h1>
+
+            <p>
+              Manage patients, medical records, medications
+              and appointments.
+            </p>
+          </div>
+
+          <div className="system-live">
+            <span className="live-dot"></span>
+            CLINICAL PORTAL ACTIVE
+          </div>
+
+        </div>
+
+        <div className="dashboard-cards">
+
+          <div className="security-card score-card">
+
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  MY PATIENTS
+                </span>
+
+                <small>
+                  Patients under your care
+                </small>
+              </div>
+
+              <span className="card-icon">♙</span>
+            </div>
+
+            <div className="metric-value">
+              24
+            </div>
+
+            <div className="metric-footer blue">
+              <span className="metric-status-dot"></span>
+              ACTIVE PATIENTS
+            </div>
+
+          </div>
+
+          <div className="security-card event-card">
+
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  APPOINTMENTS
+                </span>
+
+                <small>
+                  Today's schedule
+                </small>
+              </div>
+
+              <span className="card-icon">◷</span>
+            </div>
+
+            <div className="metric-value">
+              6
+            </div>
+
+            <div className="metric-footer blue">
+              <span className="metric-status-dot"></span>
+              TODAY
+            </div>
+
+          </div>
+
+          <div className="security-card warning-card">
+
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  MEDICAL RECORDS
+                </span>
+
+                <small>
+                  Available records
+                </small>
+              </div>
+
+              <span className="card-icon">▤</span>
+            </div>
+
+            <div className="metric-value">
+              24
+            </div>
+
+            <div className="metric-footer warning">
+              <span className="metric-status-dot"></span>
+              ACCESS CONTROLLED
+            </div>
+
+          </div>
+
+        </div>
+
+        <div className="section-heading">
+          <div>
+            <span>DOCTOR SERVICES</span>
+            <small>Clinical management</small>
+          </div>
+        </div>
+
+        <div className="dashboard-grid">
+
+          <div className="dashboard-panel">
+
+            <div className="panel-header">
+              <div>
+                <span className="panel-label">
+                  PATIENT MANAGEMENT
+                </span>
+
+                <h2>My Patients</h2>
+
+                <p>
+                  View and manage patients assigned to you.
+                </p>
+              </div>
+            </div>
+
+            <button
+              className="primary-action"
+              onClick={() =>
+                setActivePage("My Patients")
+              }
+            >
+              VIEW PATIENTS
+            </button>
+
+          </div>
+
+          <div className="dashboard-panel">
+
+            <div className="panel-header">
+              <div>
+                <span className="panel-label">
+                  APPOINTMENTS
+                </span>
+
+                <h2>Today's Appointments</h2>
+
+                <p>
+                  Review your upcoming consultations.
+                </p>
+              </div>
+            </div>
+
+            <button
+              className="primary-action"
+              onClick={() =>
+                setActivePage("Appointments")
+              }
+            >
+              VIEW APPOINTMENTS
+            </button>
+
+          </div>
+
+        </div>
+      </>
+    );
+  };
+
+  // ==========================================
+  // NURSE DASHBOARD
+  // ==========================================
+
+  const renderNurseDashboard = () => {
+    return (
+      <>
+        <div className="page-heading">
+
+          <div>
+            <div className="page-kicker">
+              MEDISHIELD AI // NURSING OPERATIONS
+            </div>
+
+            <h1>Nurse Dashboard</h1>
+
+            <p>
+              Manage today's appointments, patients and
+              clinical activities.
+            </p>
+          </div>
+
+          <div className="system-live">
+            <span className="live-dot"></span>
+            NURSING PORTAL ACTIVE
+          </div>
+
+        </div>
+
+        <div className="dashboard-cards">
+
+          <div className="security-card event-card">
+
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  TODAY'S APPOINTMENTS
+                </span>
+
+                <small>
+                  Scheduled consultations
+                </small>
+              </div>
+
+              <span className="card-icon">◷</span>
+            </div>
+
+            <div className="metric-value">
+              8
+            </div>
+
+            <div className="metric-footer blue">
+              <span className="metric-status-dot"></span>
+              TODAY
+            </div>
+
+          </div>
+
+          <div className="security-card score-card">
+
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  PATIENTS
+                </span>
+
+                <small>
+                  Patients requiring attention
+                </small>
+              </div>
+
+              <span className="card-icon">♙</span>
+            </div>
+
+            <div className="metric-value">
+              18
+            </div>
+
+            <div className="metric-footer blue">
+              <span className="metric-status-dot"></span>
+              ACTIVE
+            </div>
+
+          </div>
+
+        </div>
+
+        <div className="section-heading">
+          <div>
+            <span>NURSE SERVICES</span>
+
+            <small>
+              Patient and appointment management
+            </small>
+          </div>
+        </div>
+
+        <div className="dashboard-grid">
+
+          <div className="dashboard-panel">
+
+            <div className="panel-header">
+              <div>
+                <span className="panel-label">
+                  APPOINTMENTS
+                </span>
+
+                <h2>Today's Appointments</h2>
+
+                <p>
+                  View today's scheduled patient
+                  appointments.
+                </p>
+              </div>
+            </div>
+
+            <button
+              className="primary-action"
+              onClick={() =>
+                setActivePage("Today's Appointments")
+              }
+            >
+              VIEW APPOINTMENTS
+            </button>
+
+          </div>
+
+          <div className="dashboard-panel">
+
+            <div className="panel-header">
+              <div>
+                <span className="panel-label">
+                  PATIENT CARE
+                </span>
+
+                <h2>Patients</h2>
+
+                <p>
+                  View patients and their assigned
+                  information.
+                </p>
+              </div>
+            </div>
+
+            <button
+              className="primary-action"
+              onClick={() =>
+                setActivePage("Patients")
+              }
+            >
+              VIEW PATIENTS
+            </button>
+
+          </div>
+
+        </div>
+      </>
+    );
+  };
+
+  // ==========================================
+  // PATIENT DASHBOARD
+  // ==========================================
+
+  const renderPatientDashboard = () => {
+    return (
+      <>
+        <div className="page-heading">
+
+          <div>
+            <div className="page-kicker">
+              MEDISHIELD AI // PATIENT PORTAL
+            </div>
+
+            <h1>
+              Welcome, {currentUser?.name || "Patient"}
+            </h1>
+
+            <p>
+              Access your medical information and manage
+              your healthcare appointments.
+            </p>
+          </div>
+
+          <div className="system-live">
+            <span className="live-dot"></span>
+            PATIENT PORTAL ACTIVE
+          </div>
+
+        </div>
+
+        <div className="dashboard-cards">
+
+          <div className="security-card score-card">
+
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  MEDICAL HISTORY
+                </span>
+
+                <small>
+                  Your medical records
+                </small>
+              </div>
+
+              <span className="card-icon">▤</span>
+            </div>
+
+            <div className="metric-value">
+              VIEW
+            </div>
+
+            <div className="metric-footer blue">
+              <span className="metric-status-dot"></span>
+              PROTECTED
+            </div>
+
+          </div>
+
+          <div className="security-card warning-card">
+
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  MEDICATIONS
+                </span>
+
+                <small>
+                  Current medications
+                </small>
+              </div>
+
+              <span className="card-icon">✚</span>
+            </div>
+
+            <div className="metric-value">
+              VIEW
+            </div>
+
+            <div className="metric-footer warning">
+              <span className="metric-status-dot"></span>
+              PROTECTED
+            </div>
+
+          </div>
+
+          <div className="security-card event-card">
+
+            <div className="card-top">
+              <div>
+                <span className="card-label">
+                  APPOINTMENTS
+                </span>
+
+                <small>
+                  Your appointment history
+                </small>
+              </div>
+
+              <span className="card-icon">◷</span>
+            </div>
+
+            <div className="metric-value">
+              VIEW
+            </div>
+
+            <div className="metric-footer blue">
+              <span className="metric-status-dot"></span>
+              MANAGE
+            </div>
+
+          </div>
+
+        </div>
+
+        <div className="section-heading">
+          <div>
+            <span>PATIENT SERVICES</span>
+            <small>Healthcare access</small>
+          </div>
+        </div>
+
+        <div className="dashboard-grid">
+
+          <div className="dashboard-panel">
+
+            <div className="panel-header">
+              <div>
+                <span className="panel-label">
+                  MEDICAL RECORDS
+                </span>
+
+                <h2>My Medical History</h2>
+
+                <p>
+                  View your medical history and clinical
+                  records.
+                </p>
+              </div>
+            </div>
+
+            <button
+              className="primary-action"
+              onClick={() =>
+                setActivePage("My Medical History")
+              }
+            >
+              VIEW HISTORY
+            </button>
+
+          </div>
+
+          <div className="dashboard-panel">
+
+            <div className="panel-header">
+              <div>
+                <span className="panel-label">
+                  APPOINTMENT
+                </span>
+
+                <h2>Book Appointment</h2>
+
+                <p>
+                  Schedule a new healthcare appointment.
+                </p>
+              </div>
+            </div>
+
+            <button
+              className="primary-action"
+              onClick={() =>
+                setActivePage("Book Appointment")
+              }
+            >
+              BOOK APPOINTMENT
+            </button>
+
+          </div>
+
+        </div>
+      </>
+    );
+  };
+
+  // ==========================================
+  // ROUTER
+  // ==========================================
+
+  const renderPage = () => {
+
+    // ==========================================
+    // SECURITY USERS
+    // ==========================================
+
+    if (isSecurityUser) {
+      switch (activePage) {
+
+        case "Dashboard":
+          return renderDashboard();
+
+        case "Users":
+          return renderUsers();
+
+        case "Vulnerabilities":
+          return renderModule(
+            "Vulnerability Management",
+            "Identify, prioritize and monitor security weaknesses across healthcare infrastructure.",
+            "⚠"
+          );
+
+        case "Threat Intelligence":
+          return renderModule(
+            "Threat Intelligence",
+            "Monitor indicators of compromise, malicious activity and emerging healthcare cyber threats.",
+            "◈"
+          );
+
+        case "Security Events":
+          return renderModule(
+            "Security Events",
+            "Monitor and investigate security events generated across the healthcare environment.",
+            "◉"
+          );
+
+        case "Audit Logs":
+          return renderModule(
+            "Audit Logs",
+            "Track administrative actions and security activity for compliance and investigation.",
+            "▤"
+          );
+
+        default:
+          return renderDashboard();
+      }
+    }
+
+    // ==========================================
+    // DOCTOR
+    // ==========================================
+
+    if (isDoctor) {
+      switch (activePage) {
+
+        case "Dashboard":
+          return renderDoctorDashboard();
+
+        case "My Patients":
+          return renderModule(
+            "My Patients",
+            "View and manage patients assigned to your care.",
+            "♙"
+          );
+
+        case "Medical History":
+          return renderModule(
+            "Medical History",
+            "Review patient medical history and clinical records.",
+            "▤"
+          );
+
+        case "Medications":
+          return renderModule(
+            "Medications",
+            "Review and manage patient medications.",
+            "✚"
+          );
+
+        case "Appointments":
+          return renderModule(
+            "Appointments",
+            "View and manage your scheduled patient appointments.",
+            "◷"
+          );
+
+        default:
+          return renderDoctorDashboard();
+      }
+    }
+
+    // ==========================================
+    // NURSE
+    // ==========================================
+
+    if (isNurse) {
+      switch (activePage) {
+
+        case "Dashboard":
+          return renderNurseDashboard();
+
+        case "Today's Appointments":
+          return renderModule(
+            "Today's Appointments",
+            "View today's scheduled patient appointments.",
+            "◷"
+          );
+
+        case "Patients":
+          return renderModule(
+            "Patients",
+            "View patients assigned to your nursing operations.",
+            "♙"
+          );
+
+        case "Book Appointment":
+          return renderModule(
+            "Book Appointment",
+            "Create and manage patient appointments.",
+            "＋"
+          );
+
+        default:
+          return renderNurseDashboard();
+      }
+    }
+
+    // ==========================================
+    // PATIENT
+    // ==========================================
+
+    if (isPatient) {
+      switch (activePage) {
+
+        case "Dashboard":
+          return renderPatientDashboard();
+
+        case "My Medical History":
+          return renderModule(
+            "My Medical History",
+            "View your medical history and clinical records.",
+            "▤"
+          );
+
+        case "My Medications":
+          return renderModule(
+            "My Medications",
+            "View your current medications.",
+            "✚"
+          );
+
+        case "Appointment History":
+          return renderModule(
+            "Appointment History",
+            "View your previous and upcoming appointments.",
+            "◷"
+          );
+
+        case "Book Appointment":
+          return renderModule(
+            "Book Appointment",
+            "Schedule a new healthcare appointment.",
+            "＋"
+          );
+
+        default:
+          return renderPatientDashboard();
+      }
+    }
+
+    // ==========================================
+    // UNKNOWN ROLE
+    // ==========================================
+
+    return renderModule(
+      "Access Restricted",
+      "Your account does not currently have a supported MediShield role.",
+      "⚠"
+    );
+  };
+
+  // ==========================================
+  // APPLICATION
+  // ==========================================
+
+  return (
+    <div className="app-shell">
+
+      {/* SIDEBAR */}
+
+      <aside className="sidebar">
+
+        <div className="sidebar-top">
+
+          <div className="sidebar-brand">
+            <MediShieldLogo compact />
+          </div>
+
+          <div className="sidebar-system">
+            <span className="system-dot"></span>
+
+            <div>
+              <strong>
+                {isSecurityUser
+                  ? "SECURITY OPERATIONS"
+                  : isDoctor
+                    ? "DOCTOR PORTAL"
+                    : isNurse
+                      ? "NURSING OPERATIONS"
+                      : isPatient
+                        ? "PATIENT PORTAL"
+                        : "MEDISHIELD AI"}
+              </strong>
+
+              <small>
+                {isSecurityUser
+                  ? "HEALTHCARE SOC"
+                  : isDoctor
+                    ? "CLINICAL SERVICES"
+                    : isNurse
+                      ? "PATIENT CARE"
+                      : isPatient
+                        ? "HEALTHCARE SERVICES"
+                        : "SECURE PORTAL"}
+              </small>
+            </div>
           </div>
 
           <nav className="sidebar-nav">
-            {navItems.map((item) => (
+
+            <div className="nav-section-title">
+              COMMAND CENTER
+            </div>
+
+            {menuItems.map((item) => (
               <button
-                key={item.id}
-                type="button"
+                key={item.name}
                 className={`nav-item ${
-                  activePage === item.id ? "active" : ""
+                  activePage === item.name
+                    ? "active"
+                    : ""
                 }`}
-                onClick={() => handleNavigation(item.id)}
+                onClick={() =>
+                  setActivePage(item.name)
+                }
               >
                 <span className="nav-icon">
                   {item.icon}
                 </span>
 
                 <span className="nav-label">
-                  {item.label}
+                  {item.name}
                 </span>
 
-                {item.count && (
-                  <span
-                    className={`nav-count ${
-                      item.id === "vulnerabilities"
-                        ? "danger"
-                        : ""
-                    }`}
-                  >
-                    {item.count}
-                  </span>
+                {item.count !== undefined &&
+                  item.count > 0 && (
+                    <span className="nav-count">
+                      {item.count}
+                    </span>
+                  )}
+
+                {activePage === item.name && (
+                  <span className="nav-active-line"></span>
                 )}
               </button>
             ))}
+
           </nav>
         </div>
 
         <div className="sidebar-bottom">
 
           <div className="security-status">
-            <span className="status-dot"></span>
+
+            <span className="status-pulse"></span>
 
             <div>
-              <strong>Security Active</strong>
-              <small>All systems monitored</small>
+              <strong>SECURITY ACTIVE</strong>
+
+              <small>
+                Environment monitored
+              </small>
             </div>
+
           </div>
 
           <button
-            type="button"
             className="logout-button"
             onClick={handleLogout}
           >
             <span>↪</span>
-            Logout
+            LOGOUT
           </button>
 
         </div>
+
       </aside>
 
-      {/* ================= MAIN CONTENT ================= */}
+      {/* MAIN */}
 
       <main className="main-content">
 
@@ -468,33 +2179,47 @@ function App() {
           <div className="breadcrumb">
             <span>MEDISHIELD</span>
 
-            <span className="breadcrumb-separator">
-              /
-            </span>
+            <b>/</b>
 
             <strong>
-              {currentPageLabel.toUpperCase()}
+              {activePage.toUpperCase()}
             </strong>
           </div>
 
           <div className="topbar-right">
 
-            {activePage === "users" && (
-              <div className="api-indicator">
-                <span className="status-dot"></span>
-                API CONNECTED
+            <div className="connection-status">
+              <span></span>
+              API CONNECTED
+            </div>
+
+            <div className="topbar-divider"></div>
+
+            <div className="admin-profile">
+
+              <div className="admin-avatar">
+
+                {(currentUser?.name || "User")
+                  .split(" ")
+                  .map((part) =>
+                    part.charAt(0)
+                  )
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()}
+
               </div>
-            )}
 
-            <div className="user-profile">
+              <div>
 
-              <div className="profile-avatar">
-                SA
-              </div>
+                <strong>
+                  {currentUser?.name || "User"}
+                </strong>
 
-              <div className="profile-info">
-                <strong>Security Admin</strong>
-                <span>Administrator</span>
+                <small>
+                  {currentUser?.role || "Unknown Role"}
+                </small>
+
               </div>
 
             </div>
@@ -503,1396 +2228,232 @@ function App() {
 
         </header>
 
-        <div className="page-content">
+        <section className="content-area">
+          {renderPage()}
+        </section>
 
-          {/* DASHBOARD */}
-
-          {activePage === "dashboard" && (
-            <DashboardPage
-              dashboardData={dashboardData}
-              totalUsers={totalUsers}
-              activeUsers={activeUsers}
-              administrators={administrators}
-            />
-          )}
-
-          {/* USERS */}
-
-          {activePage === "users" && (
-            <UsersPage
-              users={users}
-              loadingUsers={loadingUsers}
-              apiError={apiError}
-              totalUsers={totalUsers}
-              activeUsers={activeUsers}
-              disabledUsers={disabledUsers}
-              administrators={administrators}
-              onAddUser={openAddUserModal}
-              onEditUser={openEditUserModal}
-              onDeleteUser={handleDeleteUser}
-              deletingUserId={deletingUserId}
-              onRefresh={fetchUsers}
-            />
-          )}
-
-          {/* VULNERABILITIES */}
-
-          {activePage === "vulnerabilities" && (
-            <PlaceholderPage
-              title="Vulnerabilities"
-              subtitle="Identify, prioritize and track healthcare security weaknesses."
-              icon="◈"
-              stats={[
-                ["Critical", "8"],
-                ["High", "12"],
-                ["Medium", "7"],
-              ]}
-            />
-          )}
-
-          {/* THREAT INTELLIGENCE */}
-
-          {activePage === "threat-intelligence" && (
-            <PlaceholderPage
-              title="Threat Intelligence"
-              subtitle="Monitor indicators, adversary activity and emerging cyber threats."
-              icon="◎"
-              stats={[
-                ["Active Threats", "14"],
-                ["Indicators", "238"],
-                ["Sources", "31"],
-              ]}
-            />
-          )}
-
-          {/* SECURITY EVENTS */}
-
-          {activePage === "security-events" && (
-            <SecurityEventsPage />
-          )}
-
-          {/* AUDIT LOGS */}
-
-          {activePage === "audit-logs" && (
-            <PlaceholderPage
-              title="Audit Logs"
-              subtitle="Track administrative actions and security activity."
-              icon="☷"
-              stats={[
-                ["Events", "1,284"],
-                ["Administrators", "1"],
-                ["Retention", "90 Days"],
-              ]}
-            />
-          )}
-
-        </div>
       </main>
 
-      {/* ================= ADD USER MODAL ================= */}
-
-      {showAddModal && (
-        <UserModal
-          mode="add"
-          form={userForm}
-          saving={savingUser}
-          onChange={handleInputChange}
-          onSubmit={handleAddUser}
-          onClose={closeModals}
-        />
-      )}
-
-      {/* ================= EDIT USER MODAL ================= */}
-
-      {showEditModal && selectedUser && (
-        <UserModal
-          mode="edit"
-          form={userForm}
-          saving={savingUser}
-          selectedUser={selectedUser}
-          onChange={handleInputChange}
-          onSubmit={handleEditUser}
-          onClose={closeModals}
-        />
-      )}
-
-    </div>
-  );
-}
-
-
-/* =========================================================
-   DASHBOARD
-========================================================= */
-
-function DashboardPage({
-  dashboardData,
-  totalUsers,
-  activeUsers,
-  administrators,
-}) {
-  return (
-    <>
-      <section className="page-header">
-
-        <div>
-          <div className="eyebrow">
-            SECURITY OPERATIONS
-          </div>
-
-          <h1>
-            Healthcare Cybersecurity Command Center
-          </h1>
-
-          <p>
-            Centralized monitoring, threat detection and
-            security administration.
-          </p>
-        </div>
-
-        <div className="header-status">
-          <span className="status-dot"></span>
-          SYSTEM OPERATIONAL
-        </div>
-
-      </section>
-
-      {/* METRICS */}
-
-      <section className="metrics-grid">
-
-        <MetricCard
-          label="SECURITY SCORE"
-          value={`${dashboardData.securityScore}%`}
-          change="+4.8%"
-          icon="◉"
-          type="success"
-        />
-
-        <MetricCard
-          label="CRITICAL THREATS"
-          value={dashboardData.criticalThreats}
-          change="2 require action"
-          icon="⚠"
-          type="danger"
-        />
-
-        <MetricCard
-          label="VULNERABILITIES"
-          value={dashboardData.vulnerabilities}
-          change="7 critical"
-          icon="◈"
-          type="warning"
-        />
-
-        <MetricCard
-          label="SECURITY EVENTS"
-          value={dashboardData.securityEvents}
-          change="+12.4% today"
-          icon="⌁"
-          type="blue"
-        />
-
-      </section>
-
-      {/* THREAT + SYSTEM */}
-
-      <section className="dashboard-grid">
-
-        <div className="panel threat-panel">
-
-          <div className="panel-header">
-
-            <div>
-              <span className="panel-label">
-                LIVE MONITORING
-              </span>
-
-              <h2>Threat Overview</h2>
-            </div>
-
-            <span className="live-badge">
-              <span className="status-dot"></span>
-              LIVE
-            </span>
-
-          </div>
-
-          <div className="threat-list">
-
-            <ThreatItem
-              name="Ransomware"
-              count="2"
-              severity="Critical"
-              type="danger"
-              description="Malware activity detected"
-            />
-
-            <ThreatItem
-              name="Suspicious Login Attempts"
-              count="18"
-              severity="High"
-              type="warning"
-              description="Unusual authentication activity"
-            />
-
-            <ThreatItem
-              name="Phishing Indicators"
-              count="31"
-              severity="Medium"
-              type="blue"
-              description="Potential phishing activity"
-            />
-
-          </div>
-
-        </div>
-
-        <div className="panel system-panel">
-
-          <div className="panel-header">
-
-            <div>
-              <span className="panel-label">
-                INFRASTRUCTURE
-              </span>
-
-              <h2>System Status</h2>
-            </div>
-
-            <span className="all-good">
-              ALL SYSTEMS NORMAL
-            </span>
-
-          </div>
-
-          <div className="system-list">
-
-            <SystemStatus
-              name="API Gateway"
-              detail="Backend service"
-              status="ONLINE"
-            />
-
-            <SystemStatus
-              name="PostgreSQL"
-              detail="Database connection"
-              status="CONNECTED"
-            />
-
-            <SystemStatus
-              name="Threat Monitor"
-              detail="Continuous monitoring"
-              status="ACTIVE"
-            />
-
-            <SystemStatus
-              name="Authentication"
-              detail="Access control"
-              status="SECURED"
-            />
-
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* ADMINISTRATION */}
-
-      <section className="panel overview-panel">
-
-        <div className="panel-header">
-
-          <div>
-            <span className="panel-label">
-              ACCESS MANAGEMENT
-            </span>
-
-            <h2>Security Administration</h2>
-          </div>
-
-        </div>
-
-        <div className="admin-overview">
-
-          <div className="overview-item">
-            <span className="overview-icon">
-              ♙
-            </span>
-
-            <div>
-              <strong>{totalUsers}</strong>
-              <span>Total Users</span>
-            </div>
-          </div>
-
-          <div className="overview-item">
-            <span className="overview-icon success">
-              ●
-            </span>
-
-            <div>
-              <strong>{activeUsers}</strong>
-              <span>Active Users</span>
-            </div>
-          </div>
-
-          <div className="overview-item">
-            <span className="overview-icon blue">
-              ◆
-            </span>
-
-            <div>
-              <strong>{administrators}</strong>
-              <span>Security Administrators</span>
-            </div>
-          </div>
-
-          <div className="overview-item">
-            <span className="overview-icon warning">
-              ◌
-            </span>
-
-            <div>
-              <strong>24/7</strong>
-              <span>Monitoring</span>
-            </div>
-          </div>
-
-        </div>
-
-      </section>
-    </>
-  );
-}
-
-
-/* =========================================================
-   USERS PAGE
-========================================================= */
-
-function UsersPage({
-  users,
-  loadingUsers,
-  apiError,
-  totalUsers,
-  activeUsers,
-  disabledUsers,
-  administrators,
-  onAddUser,
-  onEditUser,
-  onDeleteUser,
-  deletingUserId,
-  onRefresh,
-}) {
-  return (
-    <>
-      <section className="page-header users-header">
-
-        <div>
-          <div className="eyebrow">
-            ACCESS MANAGEMENT
-          </div>
-
-          <h1>Users</h1>
-
-          <p>
-            Manage security personnel and system access
-            across the MediShield environment.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="primary-button"
-          onClick={onAddUser}
+      {/* USER MODAL */}
+
+      {showAddUser && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            resetUserForm();
+            setShowAddUser(false);
+          }}
         >
-          <span>＋</span>
-          Add User
-        </button>
 
-      </section>
-
-      {apiError && (
-        <div className="api-error">
-
-          <span>!</span>
-
-          <div>
-            <strong>API Error</strong>
-            <p>{apiError}</p>
-          </div>
-
-        </div>
-      )}
-
-      <section className="user-stats-grid">
-
-        <MiniStat
-          label="TOTAL USERS"
-          value={totalUsers}
-          icon="♙"
-        />
-
-        <MiniStat
-          label="ACTIVE"
-          value={activeUsers}
-          icon="●"
-          type="success"
-        />
-
-        <MiniStat
-          label="DISABLED"
-          value={disabledUsers}
-          icon="○"
-          type="danger"
-        />
-
-        <MiniStat
-          label="ADMINISTRATORS"
-          value={administrators}
-          icon="◆"
-          type="blue"
-        />
-
-      </section>
-
-      <section className="panel users-panel">
-
-        <div className="panel-header users-panel-header">
-
-          <div>
-            <span className="panel-label">
-              IDENTITY MANAGEMENT
-            </span>
-
-            <h2>Security Personnel</h2>
-          </div>
-
-          <button
-            type="button"
-            className="refresh-button"
-            onClick={onRefresh}
-            disabled={loadingUsers}
+          <div
+            className="user-modal"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
           >
-            <span
-              className={
-                loadingUsers ? "spinning" : ""
+
+            <div className="modal-header">
+
+              <div>
+                <span className="panel-label">
+                  ACCESS CONTROL
+                </span>
+
+                <h2>
+                  {editingUserId
+                    ? "Edit Security User"
+                    : "Create Security User"}
+                </h2>
+
+                <p>
+                  {editingUserId
+                    ? "Update authorized personnel details."
+                    : "Register an authorized MediShield security user."}
+                </p>
+              </div>
+
+              <button
+                className="modal-close"
+                onClick={() => {
+                  resetUserForm();
+                  setShowAddUser(false);
+                }}
+              >
+                ×
+              </button>
+
+            </div>
+
+            {userError && (
+              <div className="modal-error">
+                <strong>OPERATION FAILED</strong>
+
+                <span>{userError}</span>
+              </div>
+            )}
+
+            <form
+              onSubmit={
+                editingUserId
+                  ? handleUpdateUser
+                  : handleAddUser
               }
             >
-              ↻
-            </span>
 
-            {loadingUsers
-              ? "Refreshing..."
-              : "Refresh"}
-          </button>
+              <div className="modal-form-grid">
 
-        </div>
+                <div className="modal-field">
 
-        <div className="table-wrapper">
+                  <label>FULL NAME</label>
 
-          <table className="users-table">
-
-            <thead>
-              <tr>
-                <th>USER</th>
-                <th>ROLE</th>
-                <th>DEPARTMENT</th>
-                <th>STATUS</th>
-                <th>CREATED</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-
-            <tbody>
-
-              {loadingUsers && users.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="6"
-                    className="empty-state"
-                  >
-                    <div className="loading-spinner"></div>
-                    Loading security personnel...
-                  </td>
-                </tr>
-              ) : users.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="6"
-                    className="empty-state"
-                  >
-                    <div className="empty-icon">
-                      ♙
-                    </div>
-
-                    <strong>
-                      No users found
-                    </strong>
-
-                    <span>
-                      Add your first security user.
-                    </span>
-                  </td>
-                </tr>
-              ) : (
-                users.map((user) => (
-                  <UserRow
-                    key={user.id}
-                    user={user}
-                    onEdit={onEditUser}
-                    onDelete={onDeleteUser}
-                    deleting={
-                      deletingUserId === user.id
+                  <input
+                    type="text"
+                    placeholder="Enter full name"
+                    value={newUser.name}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        name: e.target.value,
+                      })
                     }
+                    required
                   />
-                ))
-              )}
 
-            </tbody>
+                </div>
 
-          </table>
+                <div className="modal-field">
+
+                  <label>EMAIL ADDRESS</label>
+
+                  <input
+                    type="email"
+                    placeholder="user@hospital.com"
+                    value={newUser.email}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        email: e.target.value,
+                      })
+                    }
+                    required
+                  />
+
+                </div>
+
+                <div className="modal-field">
+
+                  <label>SECURITY ROLE</label>
+
+                  <select
+                    value={newUser.role}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        role: e.target.value,
+                      })
+                    }
+                  >
+                    <option>SOC Analyst</option>
+                    <option>Security Analyst</option>
+                    <option>Forensic Analyst</option>
+                    <option>Hospital Staff</option>
+                    <option>Administrator</option>
+                    <option>Security Admin</option>
+                    <option>Doctor</option>
+                    <option>Nurse</option>
+                    <option>Patient</option>
+                  </select>
+
+                </div>
+
+                <div className="modal-field">
+
+                  <label>DEPARTMENT</label>
+
+                  <input
+                    type="text"
+                    placeholder="Security Operations"
+                    value={newUser.department}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        department: e.target.value,
+                      })
+                    }
+                    required
+                  />
+
+                </div>
+
+                <div className="modal-field">
+
+                  <label>ACCOUNT STATUS</label>
+
+                  <select
+                    value={newUser.status}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        status: e.target.value,
+                      })
+                    }
+                  >
+                    <option>Active</option>
+                    <option>Disabled</option>
+                  </select>
+
+                </div>
+
+              </div>
+
+              <div className="modal-security-note">
+
+                <span>◆</span>
+
+                <div>
+                  <strong>SECURITY CONTROL</strong>
+
+                  <p>
+                    User access changes are synchronized
+                    with the MediShield PostgreSQL database.
+                  </p>
+                </div>
+
+              </div>
+
+              <div className="modal-actions">
+
+                <button
+                  type="button"
+                  className="cancel-button"
+                  onClick={() => {
+                    resetUserForm();
+                    setShowAddUser(false);
+                  }}
+                >
+                  CANCEL
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary-action"
+                >
+                  {editingUserId
+                    ? "UPDATE USER"
+                    : "CREATE USER"}
+                </button>
+
+              </div>
+
+            </form>
+
+          </div>
 
         </div>
-
-      </section>
-    </>
-  );
-}
-
-
-/* =========================================================
-   USER ROW
-========================================================= */
-
-function UserRow({
-  user,
-  onEdit,
-  onDelete,
-  deleting,
-}) {
-  const initials = getInitials(user.name);
-
-  const status = user.status || "Unknown";
-
-  const statusClass =
-    status.toLowerCase() === "active"
-      ? "active"
-      : status.toLowerCase() === "disabled"
-      ? "disabled"
-      : "unknown";
-
-  return (
-    <tr>
-
-      <td>
-
-        <div className="user-cell">
-
-          <div className="user-avatar">
-            {initials}
-          </div>
-
-          <div className="user-details">
-
-            <strong>
-              {user.name || "Unnamed User"}
-            </strong>
-
-            <span>
-              {user.email || "No email"}
-            </span>
-
-          </div>
-
-        </div>
-
-      </td>
-
-      <td>
-        <span className="role-badge">
-          {user.role || "Not Assigned"}
-        </span>
-      </td>
-
-      <td>
-        <span className="department-text">
-          {user.department || "—"}
-        </span>
-      </td>
-
-      <td>
-
-        <span
-          className={`status-badge ${statusClass}`}
-        >
-          <span className="status-dot"></span>
-          {status}
-        </span>
-
-      </td>
-
-      <td>
-
-        <span className="date-text">
-          {formatDate(user.createdAt)}
-        </span>
-
-      </td>
-
-      <td>
-
-        <div className="action-buttons">
-
-          <button
-            type="button"
-            className="table-action edit"
-            onClick={() => onEdit(user)}
-            title="Edit user"
-          >
-            ✎
-          </button>
-
-          <button
-            type="button"
-            className="table-action delete"
-            onClick={() => onDelete(user)}
-            disabled={deleting}
-            title="Delete user"
-          >
-            {deleting ? "…" : "⌫"}
-          </button>
-
-        </div>
-
-      </td>
-
-    </tr>
-  );
-}
-
-
-/* =========================================================
-   USER MODAL
-========================================================= */
-
-function UserModal({
-  mode,
-  form,
-  saving,
-  selectedUser,
-  onChange,
-  onSubmit,
-  onClose,
-}) {
-  const isEdit = mode === "edit";
-
-  return (
-    <div
-      className="modal-overlay"
-      onMouseDown={onClose}
-    >
-
-      <div
-        className="modal-card"
-        onMouseDown={(event) =>
-          event.stopPropagation()
-        }
-      >
-
-        <div className="modal-header">
-
-          <div>
-
-            <span className="panel-label">
-              {isEdit
-                ? "IDENTITY MANAGEMENT"
-                : "NEW IDENTITY"}
-            </span>
-
-            <h2>
-              {isEdit
-                ? "Edit User"
-                : "Add User"}
-            </h2>
-
-            <p>
-              {isEdit
-                ? `Update access details for ${
-                    selectedUser?.name || "user"
-                  }.`
-                : "Create a new security personnel account."}
-            </p>
-
-          </div>
-
-          <button
-            type="button"
-            className="modal-close"
-            onClick={onClose}
-            disabled={saving}
-          >
-            ×
-          </button>
-
-        </div>
-
-        <form onSubmit={onSubmit}>
-
-          <div className="form-grid">
-
-            <div className="form-group">
-
-              <label htmlFor="name">
-                FULL NAME <span>*</span>
-              </label>
-
-              <input
-                id="name"
-                name="name"
-                type="text"
-                placeholder="Enter full name"
-                value={form.name}
-                onChange={onChange}
-                required
-              />
-
-            </div>
-
-            <div className="form-group">
-
-              <label htmlFor="email">
-                EMAIL ADDRESS <span>*</span>
-              </label>
-
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="name@medishield.com"
-                value={form.email}
-                onChange={onChange}
-                required
-              />
-
-            </div>
-
-            <div className="form-group">
-
-              <label htmlFor="password">
-                {isEdit
-                  ? "NEW PASSWORD"
-                  : "PASSWORD"}
-
-                {!isEdit && <span>*</span>}
-              </label>
-
-              <input
-                id="password"
-                name="password"
-                type="password"
-                placeholder={
-                  isEdit
-                    ? "Leave blank to keep current password"
-                    : "Enter password"
-                }
-                value={form.password}
-                onChange={onChange}
-                required={!isEdit}
-              />
-
-            </div>
-
-            <div className="form-group">
-
-              <label htmlFor="role">
-                SECURITY ROLE <span>*</span>
-              </label>
-
-              <select
-                id="role"
-                name="role"
-                value={form.role}
-                onChange={onChange}
-                required
-              >
-
-                <option value="SOC Analyst">
-                  SOC Analyst
-                </option>
-
-                <option value="Security Analyst">
-                  Security Analyst
-                </option>
-
-                <option value="Forensic Analyst">
-                  Forensic Analyst
-                </option>
-
-                <option value="Security Admin">
-                  Security Admin
-                </option>
-
-                <option value="Hospital Staff">
-                  Hospital Staff
-                </option>
-
-              </select>
-
-            </div>
-
-            <div className="form-group">
-
-              <label htmlFor="department">
-                DEPARTMENT
-              </label>
-
-              <input
-                id="department"
-                name="department"
-                type="text"
-                placeholder="Security Operations"
-                value={form.department}
-                onChange={onChange}
-              />
-
-            </div>
-
-            <div className="form-group">
-
-              <label htmlFor="status">
-                ACCOUNT STATUS
-              </label>
-
-              <select
-                id="status"
-                name="status"
-                value={form.status}
-                onChange={onChange}
-              >
-
-                <option value="Active">
-                  Active
-                </option>
-
-                <option value="Disabled">
-                  Disabled
-                </option>
-
-              </select>
-
-            </div>
-
-          </div>
-
-          <div className="modal-security-note">
-
-            <span>✓</span>
-
-            <div>
-
-              <strong>
-                Security Notice
-              </strong>
-
-              <p>
-                Account activity is monitored and
-                recorded in the security audit trail.
-              </p>
-
-            </div>
-
-          </div>
-
-          <div className="modal-actions">
-
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={saving}
-            >
-              {saving
-                ? isEdit
-                  ? "Saving..."
-                  : "Creating..."
-                : isEdit
-                ? "Save Changes"
-                : "Create User"}
-            </button>
-
-          </div>
-
-        </form>
-
-      </div>
+      )}
 
     </div>
   );
 }
-
-
-/* =========================================================
-   METRIC CARD
-========================================================= */
-
-function MetricCard({
-  label,
-  value,
-  change,
-  icon,
-  type = "",
-}) {
-  return (
-    <div className={`metric-card ${type}`}>
-
-      <div className="metric-card-top">
-
-        <span className="metric-card-label">
-          {label}
-        </span>
-
-        <span className="metric-card-icon">
-          {icon}
-        </span>
-
-      </div>
-
-      <div className="metric-card-value">
-        {value}
-      </div>
-
-      <div className="metric-card-change">
-        {change}
-      </div>
-
-    </div>
-  );
-}
-
-
-/* =========================================================
-   THREAT ITEM
-========================================================= */
-
-function ThreatItem({
-  name,
-  count,
-  severity,
-  type = "",
-  description,
-}) {
-  return (
-    <div className="threat-item">
-
-      <div className={`threat-icon ${type}`}>
-        {type === "danger"
-          ? "!"
-          : type === "warning"
-          ? "⚠"
-          : "◎"}
-      </div>
-
-      <div className="threat-info">
-
-        <strong>{name}</strong>
-
-        <span>{description}</span>
-
-      </div>
-
-      <div className="threat-meta">
-
-        <strong>{count}</strong>
-
-        <span
-          className={`severity-badge ${type}`}
-        >
-          {severity}
-        </span>
-
-      </div>
-
-    </div>
-  );
-}
-
-
-/* =========================================================
-   SYSTEM STATUS
-========================================================= */
-
-function SystemStatus({
-  name,
-  detail,
-  status,
-}) {
-  return (
-    <div className="system-status-row">
-
-      <div className="system-status-indicator">
-        <span className="status-dot"></span>
-      </div>
-
-      <div className="system-status-info">
-
-        <strong>{name}</strong>
-
-        <span>{detail}</span>
-
-      </div>
-
-      <span className="system-status-value">
-        {status}
-      </span>
-
-    </div>
-  );
-}
-
-
-/* =========================================================
-   MINI STAT
-========================================================= */
-
-function MiniStat({
-  label,
-  value,
-  icon,
-  type = "",
-}) {
-  return (
-    <div className={`mini-stat ${type}`}>
-
-      <div className="mini-stat-icon">
-        {icon}
-      </div>
-
-      <div className="mini-stat-content">
-
-        <span>{label}</span>
-
-        <strong>{value}</strong>
-
-      </div>
-
-    </div>
-  );
-}
-
-
-/* =========================================================
-   PLACEHOLDER PAGE
-========================================================= */
-
-function PlaceholderPage({
-  title,
-  subtitle,
-  icon,
-  stats = [],
-}) {
-  return (
-    <>
-      <section className="page-header">
-
-        <div>
-
-          <div className="eyebrow">
-            SECURITY OPERATIONS
-          </div>
-
-          <h1>{title}</h1>
-
-          <p>{subtitle}</p>
-
-        </div>
-
-        <div className="header-status">
-
-          <span className="status-dot"></span>
-
-          SYSTEM OPERATIONAL
-
-        </div>
-
-      </section>
-
-      <section className="user-stats-grid">
-
-        {stats.map(([label, value], index) => (
-          <MiniStat
-            key={index}
-            label={label}
-            value={value}
-            icon={icon}
-          />
-        ))}
-
-      </section>
-
-      <section className="panel">
-
-        <div className="panel-header">
-
-          <div>
-
-            <span className="panel-label">
-              MEDISHIELD SECURITY PLATFORM
-            </span>
-
-            <h2>
-              {title} Module
-            </h2>
-
-          </div>
-
-          <span className="all-good">
-            MODULE ACTIVE
-          </span>
-
-        </div>
-
-        <div className="empty-state">
-
-          <div className="empty-icon">
-            {icon}
-          </div>
-
-          <strong>
-            {title} monitoring is ready
-          </strong>
-
-          <span>
-            This module is connected to the
-            MediShield AI command center and
-            can be expanded with live security
-            data.
-          </span>
-
-        </div>
-
-      </section>
-    </>
-  );
-}
-
-
-/* =========================================================
-   SECURITY EVENTS
-========================================================= */
-
-function SecurityEventsPage() {
-  const events = [
-    {
-      time: "09:42:18",
-      event: "Suspicious login attempt",
-      source: "Authentication",
-      severity: "High",
-    },
-    {
-      time: "09:38:04",
-      event: "Multiple failed login attempts",
-      source: "API Gateway",
-      severity: "Medium",
-    },
-    {
-      time: "09:31:47",
-      event: "Threat intelligence indicator received",
-      source: "Threat Monitor",
-      severity: "Medium",
-    },
-    {
-      time: "09:24:11",
-      event: "Security policy updated",
-      source: "Security Admin",
-      severity: "Low",
-    },
-  ];
-
-  return (
-    <>
-      <section className="page-header">
-
-        <div>
-
-          <div className="eyebrow">
-            SECURITY MONITORING
-          </div>
-
-          <h1>Security Events</h1>
-
-          <p>
-            Monitor authentication, infrastructure
-            and security activity across the
-            MediShield environment.
-          </p>
-
-        </div>
-
-        <div className="header-status">
-
-          <span className="status-dot"></span>
-
-          LIVE MONITORING
-
-        </div>
-
-      </section>
-
-      <section className="panel">
-
-        <div className="panel-header">
-
-          <div>
-
-            <span className="panel-label">
-              EVENT STREAM
-            </span>
-
-            <h2>
-              Recent Security Events
-            </h2>
-
-          </div>
-
-          <span className="live-badge">
-
-            <span className="status-dot"></span>
-
-            LIVE
-
-          </span>
-
-        </div>
-
-        <div className="table-wrapper">
-
-          <table className="users-table">
-
-            <thead>
-
-              <tr>
-                <th>TIME</th>
-                <th>EVENT</th>
-                <th>SOURCE</th>
-                <th>SEVERITY</th>
-              </tr>
-
-            </thead>
-
-            <tbody>
-
-              {events.map((event, index) => (
-                <tr key={index}>
-
-                  <td>
-                    <span className="date-text">
-                      {event.time}
-                    </span>
-                  </td>
-
-                  <td>
-                    <strong>
-                      {event.event}
-                    </strong>
-                  </td>
-
-                  <td>
-                    <span className="department-text">
-                      {event.source}
-                    </span>
-                  </td>
-
-                  <td>
-
-                    <span
-                      className={`severity-badge ${
-                        event.severity === "High"
-                          ? "danger"
-                          : event.severity === "Medium"
-                          ? "warning"
-                          : "blue"
-                      }`}
-                    >
-                      {event.severity}
-                    </span>
-
-                  </td>
-
-                </tr>
-              ))}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-      </section>
-    </>
-  );
-}
-
-
-/* =========================================================
-   HELPERS
-========================================================= */
-
-function getInitials(name = "") {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 0) {
-    return "?";
-  }
-
-  if (parts.length === 1) {
-    return parts[0]
-      .slice(0, 2)
-      .toUpperCase();
-  }
-
-  return (
-    parts[0][0] +
-    parts[parts.length - 1][0]
-  ).toUpperCase();
-}
-
-
-function formatDate(value) {
-  if (!value) {
-    return "—";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-
-/* =========================================================
-   EXPORT
-========================================================= */
 
 export default App;
-
