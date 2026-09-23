@@ -1,104 +1,231 @@
 
+import { useEffect, useRef } from "react";
 import "./Login.css";
 import MediShieldLogo from "./MediShieldLogo";
 
 function Login({ onLogin }) {
+  const sceneRef = useRef(null);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+
+    if (!scene) return;
+
+    const handleMouseMove = (e) => {
+      const x = e.clientX / window.innerWidth - 0.5;
+      const y = e.clientY / window.innerHeight - 0.5;
+
+      scene.style.setProperty("--mouse-x", x);
+      scene.style.setProperty("--mouse-y", y);
+
+      scene.querySelectorAll("[data-depth]").forEach((element) => {
+        const depth = Number(element.dataset.depth);
+
+        element.style.setProperty(
+          "--move-x",
+          `${x * depth}px`
+        );
+
+        element.style.setProperty(
+          "--move-y",
+          `${y * depth}px`
+        );
+      });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, []);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    // Temporary frontend authentication
     onLogin();
   };
 
   return (
     <div className="auth-page">
 
-      {/* =====================================
-          FUTURISTIC BACKGROUND
-      ====================================== */}
+      {/* =========================================
+          3D CYBER ENVIRONMENT
+      ========================================== */}
+      <div className="cyber-scene" ref={sceneRef}>
 
-      <div className="cyber-grid"></div>
-      <div className="scan-line"></div>
+        {/* Ambient Glow */}
+        <div
+          className="ambient-glow glow-one"
+          data-depth="18"
+        />
 
-      {/* =====================================
-          LEFT VISUAL SECTION
-      ====================================== */}
+        <div
+          className="ambient-glow glow-two"
+          data-depth="-15"
+        />
 
-      <div className="auth-visual">
+        <div
+          className="ambient-glow glow-three"
+          data-depth="25"
+        />
 
-        <div className="orbit orbit-one"></div>
-        <div className="orbit orbit-two"></div>
-        <div className="orbit orbit-three"></div>
+        <div className="cyber-grid" />
 
-        {/* Shield */}
+        {/* Rotating Rings */}
+        <div
+          className="orbit orbit-one"
+          data-depth="18"
+        />
 
-        <div className="shield-3d">
+        <div
+          className="orbit orbit-two"
+          data-depth="-15"
+        />
 
-          <div className="shield-core">
+        <div
+          className="orbit orbit-three"
+          data-depth="12"
+        />
 
-            <div className="shield-icon">
-              <svg
-                viewBox="0 0 100 110"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M50 5L91 20V49C91 75 75 94 50 105C25 94 9 75 9 49V20Z"
-                  fill="rgba(10,35,48,.95)"
-                  stroke="#4df4ff"
-                  strokeWidth="3"
-                />
+        {/* =====================================
+            3D MEDICAL SHIELD
+        ====================================== */}
+        <div
+          className="shield-3d"
+          data-depth="40"
+        >
+          <div className="shield-glow" />
 
-                <path
-                  d="M43 29H57V43H71V57H57V71H43V57H29V43H43Z"
-                  fill="#ffffff"
-                />
+          <div className="shield-shape">
+            <div className="shield-inner">
 
-                <path
-                  d="M27 67H37L42 61L47 74L53 51L58 67H73"
-                  fill="none"
-                  stroke="#4df4ff"
-                  strokeWidth="2"
-                />
-              </svg>
+              <div className="medical-cross">
+                <span />
+                <span />
+              </div>
+
+              <div className="shield-ecg">
+                ─╱╲╱╲╲╱╲─
+              </div>
+
             </div>
-
-            <div className="pulse-ring"></div>
-
           </div>
 
+          <div className="pulse-ring" />
+          <div className="pulse-ring pulse-ring-two" />
+        </div>
+
+        {/* =====================================
+            PARTICLES
+        ====================================== */}
+        <div className="particle particle-1" data-depth="25" />
+        <div className="particle particle-2" data-depth="-20" />
+        <div className="particle particle-3" data-depth="35" />
+        <div className="particle particle-4" data-depth="-30" />
+        <div className="particle particle-5" data-depth="20" />
+        <div className="particle particle-6" data-depth="40" />
+        <div className="particle particle-7" data-depth="-25" />
+        <div className="particle particle-8" data-depth="30" />
+        <div className="particle particle-9" data-depth="-35" />
+        <div className="particle particle-10" data-depth="20" />
+
+        {/* =====================================
+            SECURITY NODES
+        ====================================== */}
+        <div
+          className="data-node node-one"
+          data-depth="20"
+        >
+          <span />
+          <small>NODE_01</small>
+        </div>
+
+        <div
+          className="data-node node-two"
+          data-depth="-18"
+        >
+          <span />
+          <small>NODE_02</small>
+        </div>
+
+        <div
+          className="data-node node-three"
+          data-depth="25"
+        >
+          <span />
+          <small>SECURE</small>
+        </div>
+
+        {/* =====================================
+            SECURITY HUD
+        ====================================== */}
+        <div
+          className="floating-hud hud-left"
+          data-depth="18"
+        >
+          <span>SECURITY NETWORK</span>
+          <strong>ACTIVE</strong>
+        </div>
+
+        <div
+          className="floating-hud hud-right"
+          data-depth="-18"
+        >
+          <span>THREAT MONITOR</span>
+          <strong>ONLINE</strong>
+        </div>
+
+        <div
+          className="floating-hud hud-bottom"
+          data-depth="22"
+        >
+          <span>ENCRYPTION</span>
+          <strong>AES-256</strong>
         </div>
 
         {/* ECG */}
-
-        <div className="medical-pulse">
-          ──╱╲──╱╲╱╲──
-        </div>
-
-        {/* Brand */}
-
-        <div className="visual-title">
-          <MediShieldLogo />
+        <div
+          className="medical-pulse"
+          data-depth="20"
+        >
+          ──╱╲──╱╲╱╲──╱╲──
         </div>
 
         {/* System Status */}
-
-        <div className="system-status">
-          <span className="status-dot"></span>
+        <div
+          className="system-status"
+          data-depth="15"
+        >
+          <span className="status-dot" />
           SYSTEM PROTECTED
         </div>
 
+        <div className="scan-line" />
+
       </div>
 
-      {/* =====================================
-          LOGIN SECTION
-      ====================================== */}
+      {/* =========================================
+          BRANDING
+      ========================================== */}
+      <div className="auth-visual">
+        <div className="visual-brand">
+          <MediShieldLogo />
+        </div>
+      </div>
 
+      {/* =========================================
+          LOGIN
+      ========================================== */}
       <div className="auth-container">
-
         <div className="auth-card">
 
-          {/* Header */}
+          {/* Security Status */}
+          <div className="card-security">
+            <span className="card-security-dot" />
+            SECURE CHANNEL ESTABLISHED
+          </div>
 
+          {/* Header */}
           <div className="auth-header">
 
             <div className="login-brand">
@@ -111,9 +238,7 @@ function Login({ onLogin }) {
                 MEDISHIELD // SECURE ACCESS
               </span>
 
-              <h2>
-                Welcome Back
-              </h2>
+              <h2>Welcome Back</h2>
 
               <p>
                 Access the healthcare security command center
@@ -124,14 +249,12 @@ function Login({ onLogin }) {
           </div>
 
           {/* Login Form */}
-
           <form onSubmit={handleSubmit}>
 
             {/* Email */}
-
             <div className="input-group">
 
-              <label>
+              <label htmlFor="email">
                 EMAIL ADDRESS
               </label>
 
@@ -142,8 +265,10 @@ function Login({ onLogin }) {
                 </span>
 
                 <input
+                  id="email"
                   type="email"
                   placeholder="security@hospital.com"
+                  autoComplete="email"
                   required
                 />
 
@@ -152,10 +277,9 @@ function Login({ onLogin }) {
             </div>
 
             {/* Password */}
-
             <div className="input-group">
 
-              <label>
+              <label htmlFor="password">
                 PASSWORD
               </label>
 
@@ -166,8 +290,10 @@ function Login({ onLogin }) {
                 </span>
 
                 <input
+                  id="password"
                   type="password"
                   placeholder="Enter secure password"
+                  autoComplete="current-password"
                   required
                 />
 
@@ -175,14 +301,14 @@ function Login({ onLogin }) {
 
             </div>
 
-            {/* Remember / Forgot */}
-
+            {/* Form Options */}
             <div className="form-options">
 
               <label className="remember">
 
                 <input
                   type="checkbox"
+                  name="remember"
                 />
 
                 <span>
@@ -201,12 +327,10 @@ function Login({ onLogin }) {
             </div>
 
             {/* Login Button */}
-
             <button
               className="auth-button"
               type="submit"
             >
-
               <span>
                 ENTER COMMAND CENTER
               </span>
@@ -214,13 +338,11 @@ function Login({ onLogin }) {
               <b>
                 →
               </b>
-
             </button>
 
           </form>
 
-          {/* Security Channel */}
-
+          {/* Divider */}
           <div className="divider">
             <span>
               SECURE CHANNEL
@@ -228,7 +350,6 @@ function Login({ onLogin }) {
           </div>
 
           {/* Security Footer */}
-
           <div className="security-footer">
 
             <span>
@@ -246,7 +367,6 @@ function Login({ onLogin }) {
           </div>
 
         </div>
-
       </div>
 
     </div>

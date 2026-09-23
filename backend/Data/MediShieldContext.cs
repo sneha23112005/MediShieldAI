@@ -13,6 +13,8 @@ namespace backend.Data
         public DbSet<User> Users { get; set; }
 
         public DbSet<DashboardStats> DashboardStats { get; set; }
+        public DbSet<Vulnerability> Vulnerabilities { get; set; }
+        public DbSet<SecurityEvent> SecurityEvents { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

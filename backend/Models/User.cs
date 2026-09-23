@@ -19,6 +19,15 @@ namespace backend.Models
         [Required]
         public string PasswordHash { get; set; } = string.Empty;
 
+        [MaxLength(100)]
+        public string Role { get; set; } = "Hospital Staff";
+
+        [MaxLength(100)]
+        public string Department { get; set; } = "Administration";
+
+        [MaxLength(20)]
+        public string Status { get; set; } = "Active";
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

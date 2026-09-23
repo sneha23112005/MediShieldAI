@@ -1,918 +1,1440 @@
 
-/* =====================================================
-   MEDISHIELD AI — LOGIN PAGE
-   FUTURISTIC HEALTHCARE CYBERSECURITY
-===================================================== */
+/* =========================================================
+   MEDISHIELD AI
+   SECURE LOGIN // CYBER COMMAND CENTER
+========================================================= */
 
 * {
   box-sizing: border-box;
 }
 
-.auth-page {
-  min-height: 100vh;
+:root {
+  font-family:
+    Inter,
+    "Segoe UI",
+    Arial,
+    sans-serif;
+
+  color: #eef7ff;
+  background: #02070d;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+#root {
   width: 100%;
-  display: flex;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: #02070d;
+}
+
+/* =========================================================
+   MAIN PAGE
+========================================================= */
+
+.auth-page {
   position: relative;
+  width: 100%;
+  min-height: 100vh;
   overflow: hidden;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   background:
     radial-gradient(
-      circle at 25% 50%,
-      rgba(0, 210, 220, 0.10),
-      transparent 35%
+      circle at 18% 50%,
+      rgba(0, 180, 255, 0.08),
+      transparent 32%
     ),
     radial-gradient(
-      circle at 75% 30%,
-      rgba(0, 130, 160, 0.08),
+      circle at 82% 50%,
+      rgba(255, 40, 70, 0.07),
       transparent 30%
     ),
-    #030b13;
-
-  color: #ffffff;
-  font-family: "Segoe UI", Arial, sans-serif;
+    linear-gradient(
+      135deg,
+      #02060b 0%,
+      #06101a 50%,
+      #02060b 100%
+    );
 }
 
+/* =========================================================
+   3D CYBER SCENE
+========================================================= */
 
-/* =====================================================
-   BACKGROUND GRID
-===================================================== */
-
-.cyber-grid {
+.cyber-scene {
   position: absolute;
   inset: 0;
 
+  overflow: hidden;
+  pointer-events: none;
+
+  perspective: 1200px;
+
+  --mouse-x: 0;
+  --mouse-y: 0;
+
+  z-index: 1;
+}
+
+/* =========================================================
+   GRID
+========================================================= */
+
+.cyber-grid {
+  position: absolute;
+  inset: -20%;
+
+  opacity: 0.24;
+
   background-image:
     linear-gradient(
-      rgba(77, 244, 255, 0.035) 1px,
+      rgba(0, 190, 255, 0.08) 1px,
       transparent 1px
     ),
     linear-gradient(
       90deg,
-      rgba(77, 244, 255, 0.035) 1px,
+      rgba(0, 190, 255, 0.08) 1px,
       transparent 1px
     );
 
-  background-size: 45px 45px;
+  background-size: 55px 55px;
 
-  pointer-events: none;
+  transform:
+    perspective(700px)
+    rotateX(62deg)
+    translateY(25%);
+
+  transform-origin: center bottom;
+
+  animation: gridMove 18s linear infinite;
 }
 
+@keyframes gridMove {
+  from {
+    background-position: 0 0;
+  }
 
-/* =====================================================
-   SCAN LINE
-===================================================== */
+  to {
+    background-position: 0 55px;
+  }
+}
 
-.scan-line {
+/* =========================================================
+   AMBIENT GLOWS
+========================================================= */
+
+.ambient-glow {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: -10%;
 
-  height: 2px;
+  width: 420px;
+  height: 420px;
 
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(77, 244, 255, 0.7),
-    transparent
-  );
+  border-radius: 50%;
 
-  box-shadow:
-    0 0 20px rgba(77, 244, 255, 0.7);
+  filter: blur(90px);
 
-  animation: scan 7s linear infinite;
+  opacity: 0.13;
 
-  pointer-events: none;
-}
-
-@keyframes scan {
-  0% {
-    top: -5%;
-  }
-
-  100% {
-    top: 105%;
-  }
-}
-
-
-/* =====================================================
-   LEFT VISUAL AREA
-===================================================== */
-
-.auth-visual {
-  width: 55%;
-  min-height: 100vh;
-
-  position: relative;
-
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-
-  border-right: 1px solid rgba(77, 244, 255, 0.10);
-
-  background:
-    radial-gradient(
-      circle at center,
-      rgba(0, 230, 240, 0.08),
-      transparent 45%
+  transform:
+    translate3d(
+      var(--move-x, 0px),
+      var(--move-y, 0px),
+      0
     );
 
-  overflow: hidden;
+  transition: transform 0.2s ease-out;
 }
 
+.glow-one {
+  top: 8%;
+  left: 10%;
+  background: #00b7ff;
+}
 
-/* =====================================================
-   ORBITS
-===================================================== */
+.glow-two {
+  right: 8%;
+  top: 22%;
+  background: #ff284f;
+}
+
+.glow-three {
+  bottom: -10%;
+  left: 40%;
+  background: #008cff;
+}
+
+/* =========================================================
+   ORBIT RINGS
+========================================================= */
 
 .orbit {
   position: absolute;
 
   left: 50%;
-  top: 43%;
+  top: 50%;
 
-  transform: translate(-50%, -50%);
+  width: 500px;
+  height: 500px;
 
-  border: 1px solid rgba(77, 244, 255, 0.14);
+  margin-left: -250px;
+  margin-top: -250px;
+
+  border: 1px solid rgba(0, 190, 255, 0.14);
 
   border-radius: 50%;
 
-  pointer-events: none;
+  transform:
+    translate3d(
+      var(--move-x, 0px),
+      var(--move-y, 0px),
+      0
+    )
+    rotateX(68deg)
+    rotateZ(0deg);
+
+  transition: transform 0.25s ease-out;
 }
 
 .orbit-one {
-  width: 380px;
-  height: 380px;
-
-  animation: rotateOrbit 18s linear infinite;
+  animation: orbitRotate 18s linear infinite;
 }
 
 .orbit-two {
-  width: 520px;
-  height: 520px;
+  width: 390px;
+  height: 390px;
 
-  border-style: dashed;
+  margin-left: -195px;
+  margin-top: -195px;
 
-  opacity: 0.45;
+  border-color: rgba(255, 45, 75, 0.13);
 
-  animation: rotateOrbitReverse 28s linear infinite;
+  animation: orbitRotateReverse 13s linear infinite;
 }
 
 .orbit-three {
-  width: 680px;
-  height: 680px;
+  width: 620px;
+  height: 620px;
 
-  opacity: 0.2;
+  margin-left: -310px;
+  margin-top: -310px;
 
-  animation: rotateOrbit 40s linear infinite;
+  border-color: rgba(0, 190, 255, 0.07);
+
+  animation: orbitRotate 28s linear infinite;
 }
 
-@keyframes rotateOrbit {
+@keyframes orbitRotate {
   from {
-    transform: translate(-50%, -50%) rotate(0deg);
+    rotate: 0deg;
   }
 
   to {
-    transform: translate(-50%, -50%) rotate(360deg);
+    rotate: 360deg;
   }
 }
 
-@keyframes rotateOrbitReverse {
+@keyframes orbitRotateReverse {
   from {
-    transform: translate(-50%, -50%) rotate(360deg);
+    rotate: 360deg;
   }
 
   to {
-    transform: translate(-50%, -50%) rotate(0deg);
+    rotate: 0deg;
   }
 }
 
-
-/* =====================================================
-   SHIELD
-===================================================== */
+/* =========================================================
+   3D SHIELD
+========================================================= */
 
 .shield-3d {
-  position: relative;
-  z-index: 5;
+  position: absolute;
 
-  width: 250px;
-  height: 280px;
+  left: 50%;
+  top: 50%;
+
+  width: 360px;
+  height: 420px;
+
+  margin-left: -180px;
+  margin-top: -210px;
+
+  transform:
+    translate3d(
+      var(--move-x, 0px),
+      var(--move-y, 0px),
+      0
+    );
+
+  transition: transform 0.25s ease-out;
+
+  opacity: 0.36;
+
+  z-index: 2;
+}
+
+/* Shield glow */
+
+.shield-glow {
+  position: absolute;
+  inset: 25px;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0, 190, 255, 0.2),
+      transparent 68%
+    );
+
+  filter: blur(30px);
+}
+
+/* Shield */
+
+.shield-shape {
+  position: absolute;
+
+  left: 50%;
+  top: 50%;
+
+  width: 240px;
+  height: 290px;
+
+  transform:
+    translate(-50%, -50%)
+    perspective(500px)
+    rotateX(8deg);
+
+  clip-path: polygon(
+    50% 0%,
+    90% 15%,
+    88% 57%,
+    76% 78%,
+    50% 100%,
+    24% 78%,
+    12% 57%,
+    10% 15%
+  );
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(0, 200, 255, 0.13),
+      rgba(2, 12, 22, 0.82)
+    );
+
+  border: 1px solid rgba(0, 210, 255, 0.45);
+
+  box-shadow:
+    0 0 50px rgba(0, 190, 255, 0.2),
+    inset 0 0 35px rgba(0, 190, 255, 0.1);
+}
+
+.shield-inner {
+  position: absolute;
+  inset: 25px;
 
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: column;
+
+  border: 1px solid rgba(0, 190, 255, 0.18);
 }
 
-.shield-core {
+/* Medical cross */
+
+.medical-cross {
   position: relative;
 
-  width: 220px;
-  height: 245px;
+  width: 64px;
+  height: 64px;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  filter:
-    drop-shadow(0 0 20px rgba(77, 244, 255, 0.35))
-    drop-shadow(0 0 55px rgba(0, 220, 220, 0.12));
+  margin-bottom: 20px;
 }
 
+.medical-cross span {
+  position: absolute;
 
-/* =====================================================
-   SHIELD SVG
-===================================================== */
+  left: 50%;
+  top: 50%;
 
-.shield-icon {
-  width: 190px;
-  height: 210px;
+  background: rgba(0, 210, 255, 0.75);
 
-  position: relative;
-  z-index: 3;
+  box-shadow:
+    0 0 14px rgba(0, 210, 255, 0.7);
 }
 
-.shield-icon svg {
-  width: 100%;
-  height: 100%;
+.medical-cross span:first-child {
+  width: 52px;
+  height: 12px;
 
-  display: block;
-
-  filter:
-    drop-shadow(0 0 8px rgba(77, 244, 255, 0.6))
-    drop-shadow(0 0 25px rgba(77, 244, 255, 0.25));
+  transform: translate(-50%, -50%);
 }
 
+.medical-cross span:last-child {
+  width: 12px;
+  height: 52px;
 
-/* =====================================================
-   PULSE RING
-===================================================== */
+  transform: translate(-50%, -50%);
+}
+
+/* ECG */
+
+.shield-ecg {
+  font-size: 12px;
+  letter-spacing: 1px;
+
+  color: rgba(0, 220, 255, 0.65);
+
+  text-shadow:
+    0 0 10px rgba(0, 220, 255, 0.6);
+}
+
+/* Pulse rings */
 
 .pulse-ring {
   position: absolute;
 
-  width: 230px;
-  height: 230px;
+  left: 50%;
+  top: 50%;
 
-  border-radius: 50%;
+  width: 270px;
+  height: 320px;
 
-  border: 1px solid rgba(77, 244, 255, 0.20);
+  transform: translate(-50%, -50%);
 
-  animation: pulseRing 2.5s ease-in-out infinite;
+  border: 1px solid rgba(0, 210, 255, 0.16);
 
-  z-index: 1;
+  clip-path: polygon(
+    50% 0%,
+    90% 15%,
+    88% 57%,
+    76% 78%,
+    50% 100%,
+    24% 78%,
+    12% 57%,
+    10% 15%
+  );
+
+  animation: shieldPulse 3s ease-in-out infinite;
 }
 
-@keyframes pulseRing {
+.pulse-ring-two {
+  animation-delay: 1.5s;
+}
+
+@keyframes shieldPulse {
   0%,
   100% {
-    transform: scale(0.85);
-    opacity: 0.25;
+    opacity: 0.15;
+    scale: 0.96;
   }
 
   50% {
-    transform: scale(1.08);
-    opacity: 0.75;
+    opacity: 0.55;
+    scale: 1.04;
   }
 }
 
+/* =========================================================
+   PARTICLES
+========================================================= */
 
-/* =====================================================
-   ECG
-===================================================== */
+.particle {
+  position: absolute;
 
-.medical-pulse {
-  position: relative;
-  z-index: 6;
+  width: 3px;
+  height: 3px;
 
-  margin-top: 5px;
+  border-radius: 50%;
 
-  color: #4df4ff;
+  background: #00cfff;
 
-  font-size: 22px;
+  box-shadow:
+    0 0 12px rgba(0, 210, 255, 0.9);
 
-  letter-spacing: 5px;
+  transform:
+    translate3d(
+      var(--move-x, 0px),
+      var(--move-y, 0px),
+      0
+    );
 
-  text-shadow:
-    0 0 8px rgba(77, 244, 255, 0.9),
-    0 0 20px rgba(77, 244, 255, 0.5);
+  transition: transform 0.2s ease-out;
 
-  animation: pulseGlow 2s ease-in-out infinite;
+  animation: particleFloat 4s ease-in-out infinite;
 }
 
-@keyframes pulseGlow {
+.particle-1 {
+  left: 14%;
+  top: 24%;
+}
+
+.particle-2 {
+  left: 28%;
+  top: 70%;
+}
+
+.particle-3 {
+  left: 78%;
+  top: 18%;
+}
+
+.particle-4 {
+  left: 88%;
+  top: 62%;
+}
+
+.particle-5 {
+  left: 8%;
+  top: 52%;
+}
+
+.particle-6 {
+  left: 72%;
+  top: 76%;
+}
+
+.particle-7 {
+  left: 42%;
+  top: 12%;
+}
+
+.particle-8 {
+  left: 60%;
+  top: 30%;
+}
+
+.particle-9 {
+  left: 34%;
+  top: 88%;
+}
+
+.particle-10 {
+  left: 92%;
+  top: 34%;
+}
+
+@keyframes particleFloat {
   0%,
   100% {
-    opacity: 0.65;
+    opacity: 0.25;
+    transform:
+      translate3d(
+        var(--move-x, 0px),
+        var(--move-y, 0px),
+        0
+      )
+      scale(0.8);
   }
 
   50% {
     opacity: 1;
+    transform:
+      translate3d(
+        var(--move-x, 0px),
+        var(--move-y, 0px),
+        0
+      )
+      scale(1.5);
   }
 }
 
+/* =========================================================
+   SECURITY NODES
+========================================================= */
 
-/* =====================================================
-   LEFT BRAND LOGO
-===================================================== */
-
-.visual-title {
-  position: relative;
-
-  z-index: 10;
-
-  margin-top: 28px;
+.data-node {
+  position: absolute;
 
   display: flex;
-  justify-content: center;
   align-items: center;
+  gap: 8px;
 
-  min-height: 80px;
+  color: rgba(180, 230, 255, 0.5);
+
+  font-family:
+    "Courier New",
+    monospace;
+
+  transform:
+    translate3d(
+      var(--move-x, 0px),
+      var(--move-y, 0px),
+      0
+    );
+
+  transition: transform 0.2s ease-out;
 }
 
-
-/* Make the logo clearly visible */
-
-.visual-title .medishield-logo {
-  display: flex;
-
-  align-items: center;
-  justify-content: center;
-
-  transform: scale(1.35);
-
-  filter:
-    drop-shadow(0 0 10px rgba(77, 244, 255, 0.20));
-}
-
-
-/* =====================================================
-   SYSTEM STATUS
-===================================================== */
-
-.system-status {
-  position: relative;
-
-  z-index: 10;
-
-  margin-top: 30px;
-
-  padding: 10px 18px;
-
-  border: 1px solid rgba(77, 244, 255, 0.20);
-
-  border-radius: 30px;
-
-  background: rgba(5, 25, 34, 0.65);
-
-  backdrop-filter: blur(10px);
-
-  color: rgba(220, 255, 255, 0.8);
-
-  font-size: 10px;
-
-  font-weight: 700;
-
-  letter-spacing: 2px;
-}
-
-.status-dot {
-  display: inline-block;
-
+.data-node span {
   width: 7px;
   height: 7px;
 
-  margin-right: 8px;
+  border-radius: 50%;
+
+  background: #00d5ff;
+
+  box-shadow:
+    0 0 12px rgba(0, 210, 255, 0.9);
+}
+
+.data-node small {
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+
+.node-one {
+  left: 12%;
+  top: 34%;
+}
+
+.node-two {
+  right: 12%;
+  top: 40%;
+}
+
+.node-three {
+  right: 17%;
+  bottom: 22%;
+}
+
+/* =========================================================
+   FLOATING HUD
+========================================================= */
+
+.floating-hud {
+  position: absolute;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 10px 14px;
+
+  border-left: 2px solid rgba(0, 210, 255, 0.55);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 170, 230, 0.06),
+      transparent
+    );
+
+  font-family:
+    "Courier New",
+    monospace;
+
+  transform:
+    translate3d(
+      var(--move-x, 0px),
+      var(--move-y, 0px),
+      0
+    );
+
+  transition: transform 0.25s ease-out;
+}
+
+.floating-hud span {
+  font-size: 9px;
+  letter-spacing: 2px;
+
+  color: rgba(170, 220, 240, 0.45);
+}
+
+.floating-hud strong {
+  margin-top: 3px;
+
+  font-size: 11px;
+  letter-spacing: 2px;
+
+  color: rgba(0, 220, 255, 0.72);
+}
+
+.hud-left {
+  left: 8%;
+  top: 19%;
+}
+
+.hud-right {
+  right: 8%;
+  top: 20%;
+}
+
+.hud-bottom {
+  right: 10%;
+  bottom: 14%;
+}
+
+/* =========================================================
+   MEDICAL PULSE
+========================================================= */
+
+.medical-pulse {
+  position: absolute;
+
+  left: 50%;
+  bottom: 9%;
+
+  transform:
+    translateX(-50%)
+    translate3d(
+      var(--move-x, 0px),
+      var(--move-y, 0px),
+      0
+    );
+
+  color: rgba(0, 210, 255, 0.35);
+
+  font-family:
+    "Courier New",
+    monospace;
+
+  font-size: 12px;
+  letter-spacing: 4px;
+
+  white-space: nowrap;
+}
+
+/* =========================================================
+   SYSTEM STATUS
+========================================================= */
+
+.system-status {
+  position: absolute;
+
+  left: 50%;
+  bottom: 5%;
+
+  transform:
+    translateX(-50%)
+    translate3d(
+      var(--move-x, 0px),
+      var(--move-y, 0px),
+      0
+    );
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 7px 14px;
+
+  border: 1px solid rgba(0, 210, 255, 0.12);
+
+  background: rgba(0, 10, 18, 0.38);
+
+  font-family:
+    "Courier New",
+    monospace;
+
+  font-size: 9px;
+  letter-spacing: 2px;
+
+  color: rgba(190, 235, 255, 0.48);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
 
   border-radius: 50%;
 
-  background: #4df4ff;
+  background: #36e4a0;
 
   box-shadow:
-    0 0 7px #4df4ff,
-    0 0 15px #4df4ff;
+    0 0 10px rgba(54, 228, 160, 0.9);
 
-  animation: statusBlink 1.5s infinite;
+  animation: statusBlink 1.5s ease-in-out infinite;
 }
 
 @keyframes statusBlink {
   0%,
   100% {
-    opacity: 1;
+    opacity: 0.45;
   }
 
   50% {
-    opacity: 0.35;
+    opacity: 1;
   }
 }
 
+/* =========================================================
+   SCAN LINE
+========================================================= */
 
-/* =====================================================
-   RIGHT LOGIN CONTAINER
-===================================================== */
+.scan-line {
+  position: absolute;
 
-.auth-container {
-  width: 45%;
-  min-height: 100vh;
+  left: 0;
+  right: 0;
 
+  top: -5%;
+
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(0, 210, 255, 0.3),
+      transparent
+    );
+
+  box-shadow:
+    0 0 12px rgba(0, 210, 255, 0.3);
+
+  animation: scanMove 7s linear infinite;
+}
+
+@keyframes scanMove {
+  from {
+    top: -5%;
+  }
+
+  to {
+    top: 105%;
+  }
+}
+
+/* =========================================================
+   BRANDING
+========================================================= */
+
+.auth-visual {
+  position: absolute;
+
+  left: 7%;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  z-index: 5;
+
+  width: 280px;
+
+  pointer-events: none;
+}
+
+.visual-brand {
   display: flex;
-
-  align-items: center;
   justify-content: center;
 
-  padding: 50px;
+  filter:
+    drop-shadow(
+      0 0 20px rgba(0, 190, 255, 0.12)
+    );
+}
 
+/* =========================================================
+   LOGIN CONTAINER
+========================================================= */
+
+.auth-container {
   position: relative;
+
+  width: min(430px, calc(100% - 40px));
+
+  margin-left: 28%;
+
   z-index: 20;
 }
 
-
-/* =====================================================
+/* =========================================================
    LOGIN CARD
-===================================================== */
+========================================================= */
 
 .auth-card {
+  position: relative;
+
   width: 100%;
-  max-width: 500px;
 
-  padding: 42px;
+  padding: 28px 30px 24px;
 
-  border-radius: 22px;
+  border: 1px solid rgba(120, 210, 255, 0.16);
 
-  border: 1px solid rgba(77, 244, 255, 0.15);
+  border-radius: 18px;
 
   background:
     linear-gradient(
       145deg,
-      rgba(13, 31, 43, 0.95),
-      rgba(4, 15, 24, 0.96)
+      rgba(10, 23, 34, 0.92),
+      rgba(3, 10, 17, 0.96)
     );
 
   box-shadow:
-    0 25px 80px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 35px rgba(0, 220, 220, 0.05);
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    0 0 45px rgba(0, 150, 220, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(18px);
+
+  overflow: hidden;
 }
 
+.auth-card::before {
+  content: "";
 
-/* =====================================================
-   LOGIN HEADER
-===================================================== */
+  position: absolute;
+
+  top: 0;
+  left: 0;
+  right: 0;
+
+  height: 2px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(0, 205, 255, 0.8),
+      rgba(255, 45, 75, 0.65),
+      transparent
+    );
+}
+
+/* =========================================================
+   SECURITY HEADER
+========================================================= */
+
+.card-security {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-bottom: 22px;
+
+  font-family:
+    "Courier New",
+    monospace;
+
+  font-size: 8px;
+  letter-spacing: 1.7px;
+
+  color: rgba(170, 225, 245, 0.45);
+}
+
+.card-security-dot {
+  width: 6px;
+  height: 6px;
+
+  flex-shrink: 0;
+
+  border-radius: 50%;
+
+  background: #38e3a0;
+
+  box-shadow:
+    0 0 10px rgba(56, 227, 160, 0.8);
+}
+
+/* =========================================================
+   HEADER
+========================================================= */
 
 .auth-header {
   display: flex;
+  align-items: center;
+  gap: 16px;
 
-  align-items: flex-start;
-
-  gap: 18px;
-
-  margin-bottom: 38px;
+  margin-bottom: 28px;
 }
 
 .login-brand {
   flex-shrink: 0;
-
-  display: flex;
-
-  align-items: center;
-  justify-content: center;
-
-  width: 58px;
-  height: 58px;
-}
-
-.login-brand .medishield-logo {
-  transform: scale(0.8);
 }
 
 .login-heading {
-  flex: 1;
+  min-width: 0;
 }
 
 .system-label {
   display: block;
 
-  margin-bottom: 9px;
+  margin-bottom: 6px;
 
-  color: #4df4ff;
+  font-family:
+    "Courier New",
+    monospace;
 
-  font-size: 9px;
+  font-size: 8px;
+  letter-spacing: 1.5px;
 
-  font-weight: 800;
-
-  letter-spacing: 2px;
+  color: rgba(0, 205, 255, 0.65);
 }
 
-.auth-header h2 {
+.login-heading h2 {
   margin: 0;
 
-  color: #ffffff;
-
-  font-size: 30px;
+  font-size: 27px;
+  line-height: 1.1;
 
   font-weight: 700;
 
   letter-spacing: -0.5px;
+
+  color: #f2f8ff;
 }
 
-.auth-header p {
-  margin: 9px 0 0;
+.login-heading p {
+  margin: 7px 0 0;
 
-  color: rgba(200, 220, 230, 0.55);
+  font-size: 11px;
+  line-height: 1.5;
 
-  font-size: 13px;
-
-  line-height: 1.6;
+  color: rgba(200, 220, 235, 0.48);
 }
 
-
-/* =====================================================
+/* =========================================================
    INPUT GROUP
-===================================================== */
+========================================================= */
 
 .input-group {
-  margin-bottom: 23px;
+  margin-bottom: 18px;
 }
 
 .input-group label {
   display: block;
 
-  margin-bottom: 9px;
+  margin-bottom: 7px;
 
-  color: rgba(210, 235, 240, 0.65);
+  font-family:
+    "Courier New",
+    monospace;
 
   font-size: 9px;
+  letter-spacing: 1.5px;
 
-  font-weight: 800;
-
-  letter-spacing: 1.8px;
+  color: rgba(190, 225, 240, 0.52);
 }
 
-
-/* =====================================================
-   INPUT WRAPPER
-===================================================== */
+/* =========================================================
+   INPUT
+========================================================= */
 
 .input-wrapper {
-  height: 54px;
-
-  display: flex;
-
-  align-items: center;
-
-  border: 1px solid rgba(77, 244, 255, 0.13);
-
-  border-radius: 10px;
-
-  background: rgba(2, 12, 19, 0.75);
-
-  transition: 0.25s ease;
-}
-
-.input-wrapper:focus-within {
-  border-color: rgba(77, 244, 255, 0.65);
-
-  box-shadow:
-    0 0 0 3px rgba(77, 244, 255, 0.06),
-    0 0 20px rgba(77, 244, 255, 0.08);
+  position: relative;
 }
 
 .input-icon {
-  width: 50px;
+  position: absolute;
 
-  display: flex;
+  left: 14px;
+  top: 50%;
 
-  align-items: center;
-  justify-content: center;
-
-  color: #4df4ff;
-
-  font-size: 16px;
-
-  opacity: 0.8;
-}
-
-.input-wrapper input {
-  flex: 1;
-
-  height: 100%;
-
-  border: none;
-  outline: none;
-
-  background: transparent;
-
-  color: #ffffff;
+  transform: translateY(-50%);
 
   font-size: 14px;
 
-  padding-right: 15px;
+  opacity: 0.55;
+
+  z-index: 2;
+}
+
+.input-wrapper input {
+  width: 100%;
+
+  height: 46px;
+
+  padding: 0 14px 0 42px;
+
+  border: 1px solid rgba(140, 205, 230, 0.12);
+
+  border-radius: 9px;
+
+  outline: none;
+
+  background:
+    rgba(2, 10, 17, 0.75);
+
+  color: #eaf7ff;
+
+  font-size: 12px;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .input-wrapper input::placeholder {
-  color: rgba(180, 205, 215, 0.32);
+  color: rgba(170, 200, 215, 0.3);
 }
 
+.input-wrapper input:focus {
+  border-color: rgba(0, 205, 255, 0.45);
 
-/* =====================================================
+  background:
+    rgba(3, 15, 24, 0.95);
+
+  box-shadow:
+    0 0 0 3px rgba(0, 190, 255, 0.05),
+    0 0 20px rgba(0, 190, 255, 0.06);
+}
+
+/* =========================================================
    FORM OPTIONS
-===================================================== */
+========================================================= */
 
 .form-options {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
 
-  margin: 5px 0 28px;
+  margin: 4px 0 22px;
 }
 
 .remember {
   display: flex;
-
   align-items: center;
-
-  gap: 8px;
-
-  color: rgba(205, 225, 230, 0.55);
-
-  font-size: 11px;
+  gap: 7px;
 
   cursor: pointer;
+
+  font-size: 10px;
+
+  color: rgba(195, 220, 235, 0.48);
 }
 
 .remember input {
-  accent-color: #4df4ff;
-
   width: 13px;
   height: 13px;
+
+  accent-color: #00bce8;
 }
 
 .forgot {
-  border: none;
+  padding: 0;
+
+  border: 0;
 
   background: transparent;
 
-  color: #4df4ff;
-
-  font-size: 11px;
-
   cursor: pointer;
 
-  padding: 0;
+  font-size: 10px;
+
+  color: rgba(0, 200, 255, 0.65);
+
+  transition: color 0.2s ease;
 }
 
 .forgot:hover {
-  text-decoration: underline;
+  color: #55ddff;
 }
 
-
-/* =====================================================
+/* =========================================================
    LOGIN BUTTON
-===================================================== */
+========================================================= */
 
 .auth-button {
-  width: 100%;
+  position: relative;
 
-  height: 55px;
+  width: 100%;
+  height: 48px;
 
   display: flex;
-
   align-items: center;
   justify-content: space-between;
 
-  padding: 0 20px;
+  padding: 0 16px 0 19px;
 
-  border: 1px solid rgba(77, 244, 255, 0.5);
+  border: 1px solid rgba(0, 205, 255, 0.3);
 
-  border-radius: 10px;
-
-  background:
-    linear-gradient(
-      100deg,
-      rgba(12, 154, 168, 0.85),
-      rgba(20, 212, 205, 0.72)
-    );
-
-  color: #001217;
-
-  font-size: 11px;
-
-  font-weight: 900;
-
-  letter-spacing: 1.5px;
+  border-radius: 9px;
 
   cursor: pointer;
 
-  box-shadow:
-    0 0 20px rgba(77, 244, 255, 0.12);
-
-  transition: 0.25s ease;
-}
-
-.auth-button b {
-  font-size: 22px;
-
-  font-weight: 400;
-}
-
-.auth-button:hover {
-  transform: translateY(-2px);
-
-  box-shadow:
-    0 8px 30px rgba(77, 244, 255, 0.22);
+  overflow: hidden;
 
   background:
     linear-gradient(
       100deg,
-      #16d9d0,
-      #4df4ff
+      rgba(0, 130, 180, 0.18),
+      rgba(0, 190, 240, 0.1)
     );
+
+  color: #eafaff;
+
+  font-family:
+    "Courier New",
+    monospace;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  letter-spacing: 1.3px;
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
+.auth-button::before {
+  content: "";
 
-/* =====================================================
+  position: absolute;
+
+  top: 0;
+  left: -100%;
+
+  width: 100%;
+  height: 100%;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.08),
+      transparent
+    );
+
+  transition: left 0.5s ease;
+}
+
+.auth-button:hover {
+  transform: translateY(-1px);
+
+  border-color: rgba(0, 215, 255, 0.65);
+
+  background:
+    linear-gradient(
+      100deg,
+      rgba(0, 150, 200, 0.24),
+      rgba(0, 205, 255, 0.15)
+    );
+
+  box-shadow:
+    0 10px 30px rgba(0, 180, 255, 0.12);
+}
+
+.auth-button:hover::before {
+  left: 100%;
+}
+
+.auth-button:active {
+  transform: translateY(0);
+}
+
+.auth-button b {
+  font-size: 18px;
+  font-weight: 400;
+
+  color: #52ddff;
+}
+
+/* =========================================================
    DIVIDER
-===================================================== */
+========================================================= */
 
 .divider {
-  display: flex;
+  position: relative;
 
+  display: flex;
   align-items: center;
 
-  gap: 15px;
+  margin: 24px 0 18px;
 
-  margin: 30px 0 20px;
-
-  color: rgba(180, 215, 220, 0.3);
-
-  font-size: 8px;
-
-  font-weight: 800;
-
-  letter-spacing: 2px;
+  text-align: center;
 }
 
 .divider::before,
 .divider::after {
   content: "";
 
-  height: 1px;
-
   flex: 1;
 
-  background: rgba(77, 244, 255, 0.10);
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(150, 210, 235, 0.1)
+    );
 }
 
+.divider::after {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(150, 210, 235, 0.1),
+      transparent
+    );
+}
 
-/* =====================================================
+.divider span {
+  padding: 0 10px;
+
+  font-family:
+    "Courier New",
+    monospace;
+
+  font-size: 7px;
+  letter-spacing: 1.8px;
+
+  color: rgba(170, 210, 225, 0.3);
+}
+
+/* =========================================================
    SECURITY FOOTER
-===================================================== */
+========================================================= */
 
 .security-footer {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
 
-  justify-content: center;
-
-  gap: 18px;
-
-  flex-wrap: wrap;
-
-  color: rgba(150, 205, 210, 0.4);
-
-  font-size: 8px;
-
-  font-weight: 700;
-
-  letter-spacing: 1px;
+  gap: 8px;
 }
 
 .security-footer span {
+  font-family:
+    "Courier New",
+    monospace;
+
+  font-size: 7px;
+  letter-spacing: 0.9px;
+
+  color: rgba(150, 220, 190, 0.42);
+
   white-space: nowrap;
 }
 
-
-/* =====================================================
+/* =========================================================
    RESPONSIVE
-===================================================== */
+========================================================= */
 
 @media (max-width: 1000px) {
-
   .auth-visual {
-    width: 48%;
+    left: 4%;
+    width: 220px;
   }
 
   .auth-container {
-    width: 52%;
+    margin-left: 25%;
+  }
 
-    padding: 30px;
+  .shield-3d {
+    opacity: 0.25;
+  }
+}
+
+@media (max-width: 760px) {
+  .auth-page {
+    padding: 25px 0;
+  }
+
+  .auth-visual {
+    position: relative;
+
+    left: auto;
+    top: auto;
+
+    transform: none;
+
+    width: 100%;
+
+    margin-bottom: 20px;
+  }
+
+  .auth-container {
+    width: min(430px, calc(100% - 28px));
+
+    margin-left: 0;
+  }
+
+  .cyber-scene {
+    opacity: 0.65;
+  }
+
+  .shield-3d {
+    width: 280px;
+    height: 330px;
+
+    margin-left: -140px;
+    margin-top: -165px;
+  }
+
+  .shield-shape {
+    width: 190px;
+    height: 230px;
   }
 
   .orbit-one {
-    width: 300px;
-    height: 300px;
+    width: 390px;
+    height: 390px;
+
+    margin-left: -195px;
+    margin-top: -195px;
   }
 
-  .orbit-two {
-    width: 420px;
-    height: 420px;
-  }
-
-  .orbit-three {
-    width: 520px;
-    height: 520px;
-  }
-
-  .shield-3d {
-    transform: scale(0.85);
-  }
-
-  .visual-title .medishield-logo {
-    transform: scale(1.05);
-  }
-}
-
-
-@media (max-width: 750px) {
-
-  .auth-page {
-    flex-direction: column;
-    overflow-y: auto;
-  }
-
-  .auth-visual {
-    width: 100%;
-
-    min-height: 430px;
-
-    border-right: none;
-
-    border-bottom: 1px solid rgba(77, 244, 255, 0.10);
-  }
-
-  .auth-container {
-    width: 100%;
-
-    min-height: auto;
-
-    padding: 30px 20px;
-  }
-
-  .shield-3d {
-    transform: scale(0.7);
-    margin-top: -25px;
-  }
-
-  .medical-pulse {
-    margin-top: -15px;
-  }
-
-  .visual-title {
-    margin-top: 10px;
-  }
-
-  .visual-title .medishield-logo {
-    transform: scale(0.9);
-  }
-
+  .floating-hud,
+  .data-node,
+  .medical-pulse,
   .system-status {
-    margin-top: 15px;
-  }
-
-  .auth-card {
-    padding: 30px 24px;
+    display: none;
   }
 }
 
-
-@media (max-width: 450px) {
-
-  .auth-visual {
-    min-height: 380px;
-  }
-
-  .shield-3d {
-    transform: scale(0.58);
-  }
-
-  .visual-title .medishield-logo {
-    transform: scale(0.75);
-  }
-
+@media (max-width: 480px) {
   .auth-card {
-    padding: 25px 18px;
+    padding: 22px 20px 20px;
+
+    border-radius: 15px;
   }
 
-  .auth-header h2 {
-    font-size: 25px;
+  .auth-header {
+    gap: 12px;
+    margin-bottom: 23px;
   }
 
-  .security-footer {
-    gap: 10px;
+  .login-heading h2 {
+    font-size: 23px;
+  }
+
+  .login-heading p {
+    font-size: 10px;
+  }
+
+  .security-footer span {
+    font-size: 6px;
+  }
+
+  .form-options {
+    margin-bottom: 18px;
+  }
+
+  .auth-button {
+    height: 46px;
+    font-size: 9px;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
