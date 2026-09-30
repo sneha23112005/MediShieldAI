@@ -1,4 +1,3 @@
-
 using System.Security.Cryptography;
 using System.Text;
 using backend.Data;
@@ -15,9 +14,11 @@ namespace backend.Controllers
     {
         private readonly MediShieldContext _context;
 
+        // Roles supported by the MediShield AI application
         private static readonly string[] AllowedRoles =
         {
             "Security Admin",
+            "SOC Analyst",
             "Doctor",
             "Nurse",
             "Patient"
@@ -28,7 +29,10 @@ namespace backend.Controllers
             _context = context;
         }
 
+        // =========================================================
         // GET: api/users
+        // =========================================================
+
         [HttpGet]
         public async Task<ActionResult<IEnumerable<UserDto>>> GetUsers()
         {
@@ -49,7 +53,10 @@ namespace backend.Controllers
             return Ok(users);
         }
 
+        // =========================================================
         // GET: api/users/{id}
+        // =========================================================
+
         [HttpGet("{id}")]
         public async Task<ActionResult<UserDto>> GetUser(int id)
         {
@@ -75,11 +82,23 @@ namespace backend.Controllers
             });
         }
 
+        // =========================================================
         // POST: api/users
+        // CREATE USER
+        // =========================================================
+
         [HttpPost]
         public async Task<ActionResult<UserDto>> CreateUser(
-            CreateUserDto request)
+            [FromBody] CreateUserDto request)
         {
+            if (request == null)
+            {
+                return BadRequest(new
+                {
+                    message = "Request body is required."
+                });
+            }
+
             if (string.IsNullOrWhiteSpace(request.Name) ||
                 string.IsNullOrWhiteSpace(request.Email) ||
                 string.IsNullOrWhiteSpace(request.Password))
@@ -95,12 +114,14 @@ namespace backend.Controllers
             {
                 return BadRequest(new
                 {
-                    message = "Invalid role. Allowed roles are Security Admin, Doctor, Nurse, and Patient."
+                    message =
+                        "Invalid role. Allowed roles are Security Admin, SOC Analyst, Doctor, Nurse, and Patient."
                 });
             }
 
             var email = request.Email.Trim().ToLowerInvariant();
 
+            // Prevent duplicate email
             if (await _context.Users.AnyAsync(u => u.Email == email))
             {
                 return Conflict(new
@@ -115,14 +136,15 @@ namespace backend.Controllers
                 Email = email,
                 PasswordHash = HashPassword(request.Password),
                 Role = request.Role,
-                Department = request.Department,
+                Department = request.Department?.Trim() ?? "",
                 Status = string.IsNullOrWhiteSpace(request.Status)
                     ? "Active"
-                    : request.Status,
+                    : request.Status.Trim(),
                 CreatedAt = DateTime.UtcNow
             };
 
             _context.Users.Add(user);
+
             await _context.SaveChangesAsync();
 
             var response = new UserDto
@@ -143,12 +165,24 @@ namespace backend.Controllers
             );
         }
 
+        // =========================================================
         // PUT: api/users/{id}
+        // UPDATE USER
+        // =========================================================
+
         [HttpPut("{id}")]
         public async Task<ActionResult<UserDto>> UpdateUser(
             int id,
-            UpdateUserDto request)
+            [FromBody] UpdateUserDto request)
         {
+            if (request == null)
+            {
+                return BadRequest(new
+                {
+                    message = "Request body is required."
+                });
+            }
+
             var user = await _context.Users.FindAsync(id);
 
             if (user == null)
@@ -173,12 +207,14 @@ namespace backend.Controllers
             {
                 return BadRequest(new
                 {
-                    message = "Invalid role. Allowed roles are Security Admin, Doctor, Nurse, and Patient."
+                    message =
+                        "Invalid role. Allowed roles are Security Admin, SOC Analyst, Doctor, Nurse, and Patient."
                 });
             }
 
             var email = request.Email.Trim().ToLowerInvariant();
 
+            // Prevent duplicate email
             if (await _context.Users.AnyAsync(
                 u => u.Email == email && u.Id != id))
             {
@@ -191,11 +227,12 @@ namespace backend.Controllers
             user.Name = request.Name.Trim();
             user.Email = email;
             user.Role = request.Role;
-            user.Department = request.Department;
+            user.Department = request.Department?.Trim() ?? "";
             user.Status = string.IsNullOrWhiteSpace(request.Status)
                 ? "Active"
-                : request.Status;
+                : request.Status.Trim();
 
+            // Password is optional during edit
             if (!string.IsNullOrWhiteSpace(request.Password))
             {
                 user.PasswordHash = HashPassword(request.Password);
@@ -215,7 +252,10 @@ namespace backend.Controllers
             });
         }
 
+        // =========================================================
         // DELETE: api/users/{id}
+        // =========================================================
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
@@ -230,6 +270,7 @@ namespace backend.Controllers
             }
 
             _context.Users.Remove(user);
+
             await _context.SaveChangesAsync();
 
             return Ok(new
@@ -238,12 +279,16 @@ namespace backend.Controllers
             });
         }
 
-        // SHA-256 password hashing
+        // =========================================================
+        // PASSWORD HASHING
+        // =========================================================
+
         private static string HashPassword(string password)
         {
             using var sha256 = SHA256.Create();
 
             var bytes = Encoding.UTF8.GetBytes(password);
+
             var hash = sha256.ComputeHash(bytes);
 
             return Convert.ToHexString(hash);

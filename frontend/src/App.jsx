@@ -1,204 +1,486 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import Login from "./Login";
 import MediShieldLogo from "./MediShieldLogo";
+import HealthcareDashboard from "./healthcare/HealthcareDashboard";
 
 const API_BASE_URL = "http://localhost:5252/api";
 
+/* =========================================================
+   API HELPER
+========================================================= */
+
+const apiFetch = async (endpoint, options = {}) => {
+  const token = localStorage.getItem("token");
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  const text = await response.text();
+
+  let data = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text };
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ||
+        data.title ||
+        data.detail ||
+        data.error ||
+        `API request failed (${response.status})`
+    );
+  }
+
+  return data;
+};
+
+/* =========================================================
+   SMALL UI COMPONENTS
+========================================================= */
+
+function Modal({ title, kicker, children, onClose }) {
+  return (
+    <div
+      className="modal-overlay"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="modal-card">
+        <div className="modal-header">
+          <div>
+            <div className="section-kicker">{kicker}</div>
+            <h2>{title}</h2>
+          </div>
+
+          <button
+            type="button"
+            className="modal-close"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, subtext }) {
+  return (
+    <div className="metric-card">
+      <div className="metric-label">{label}</div>
+      <div className="metric-value">{value}</div>
+      {subtext && <div className="metric-subtext">{subtext}</div>}
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const value = status || "Unknown";
+
+  return (
+    <span
+      className={`status-badge ${
+        String(value).toLowerCase().includes("active")
+          ? "status-active"
+          : "status-inactive"
+      }`}
+    >
+      {value}
+    </span>
+  );
+}
+
+/* =========================================================
+   MAIN APP
+========================================================= */
+
 function App() {
-  // ==========================================
-  // AUTHENTICATION
-  // ==========================================
+  /* =======================================================
+     AUTHENTICATION
+  ======================================================= */
 
   const [authenticated, setAuthenticated] = useState(() => {
     return !!localStorage.getItem("token");
   });
 
-  // ==========================================
-  // CURRENT USER
-  // ==========================================
-
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const savedUser = localStorage.getItem("user");
-
-      if (savedUser) {
-        return JSON.parse(savedUser);
-      }
-    } catch (error) {
-      console.error("Unable to restore logged-in user:", error);
+      return JSON.parse(localStorage.getItem("user"));
+    } catch {
+      return null;
     }
-
-    return null;
   });
-
-  // ==========================================
-  // ROLE DEFINITIONS
-  // ==========================================
 
   const userRole = currentUser?.role || "";
 
-  const isSecurityUser =
-    userRole === "Security Admin" ||
-    userRole === "SOC Analyst" ||
-    userRole === "Security Analyst" ||
-    userRole === "Forensic Analyst" ||
-    userRole === "Administrator" ||
-    userRole === "Admin";
+  const isSecurityUser = [
+    "Security Admin",
+    "SOC Analyst",
+    "Security Analyst",
+    "Forensic Analyst",
+    "Administrator",
+    "Admin",
+  ].includes(userRole);
 
   const isDoctor = userRole === "Doctor";
   const isNurse = userRole === "Nurse";
   const isPatient = userRole === "Patient";
 
-  // ==========================================
-  // DASHBOARD DATA
-  // ==========================================
+  /* =======================================================
+     NAVIGATION
+  ======================================================= */
+
+  const [activePage, setActivePage] = useState("Dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  /* =======================================================
+     DASHBOARD
+  ======================================================= */
 
   const [dashboard, setDashboard] = useState({
-    securityScore: 0,
+    securityScore: 100,
     criticalThreats: 0,
     vulnerabilities: 0,
     securityEvents: 0,
     totalUsers: 0,
     activeUsers: 0,
     administrators: 0,
-    criticalVulnerabilities: 0,
-    highVulnerabilities: 0,
-    activeVulnerabilities: 0,
     lastUpdated: null,
   });
 
-  const [loadingDashboard, setLoadingDashboard] = useState(true);
-  const [dashboardError, setDashboardError] = useState("");
+  const [dashboardLoading, setDashboardLoading] = useState(false);
 
-  // ==========================================
-  // NAVIGATION
-  // ==========================================
+  /* =======================================================
+     USERS
+  ======================================================= */
 
-  const [activePage, setActivePage] = useState("Dashboard");
-
-  // ==========================================
-  // USER MANAGEMENT
-  // ==========================================
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userError, setUserError] = useState("");
 
   const [showAddUser, setShowAddUser] = useState(false);
-  const [users, setUsers] = useState([]);
+  const [editingUserId, setEditingUserId] = useState(null);
 
   const [newUser, setNewUser] = useState({
     name: "",
     email: "",
-    role: "SOC Analyst",
+    password: "User@123",
+    role: "Security Admin",
     department: "",
     status: "Active",
   });
 
-  const [editingUserId, setEditingUserId] = useState(null);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [userError, setUserError] = useState("");
+  /* =======================================================
+     PATIENTS
+  ======================================================= */
 
-  // ==========================================
-  // DASHBOARD FETCH
-  // ==========================================
+  const [patients, setPatients] = useState([]);
+  const [editingPatient, setEditingPatient] = useState(null);
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [patientSaving, setPatientSaving] = useState(false);
+  const [patientError, setPatientError] = useState("");
+
+  const emptyPatient = {
+    name: "",
+    age: "",
+    gender: "Male",
+    bloodGroup: "",
+    phone: "",
+    email: "",
+    address: "",
+  };
+
+  const [patientForm, setPatientForm] = useState(emptyPatient);
+
+  /* =======================================================
+     DOCTORS
+  ======================================================= */
+
+  const [doctors, setDoctors] = useState([]);
+  const [editingDoctor, setEditingDoctor] = useState(null);
+  const [showDoctorModal, setShowDoctorModal] = useState(false);
+  const [doctorSaving, setDoctorSaving] = useState(false);
+  const [doctorError, setDoctorError] = useState("");
+
+  const emptyDoctor = {
+    name: "",
+    specialization: "",
+    phone: "",
+    email: "",
+  };
+
+  const [doctorForm, setDoctorForm] = useState(emptyDoctor);
+
+  /* =======================================================
+     NURSES
+  ======================================================= */
+
+  const [nurses, setNurses] = useState([]);
+  const [editingNurse, setEditingNurse] = useState(null);
+  const [showNurseModal, setShowNurseModal] = useState(false);
+  const [nurseSaving, setNurseSaving] = useState(false);
+  const [nurseError, setNurseError] = useState("");
+
+  const emptyNurse = {
+    name: "",
+    department: "",
+    phone: "",
+    email: "",
+  };
+
+  const [nurseForm, setNurseForm] = useState(emptyNurse);
+
+  /* =======================================================
+     MEDICAL RECORDS
+  ======================================================= */
+
+  const [medicalRecords, setMedicalRecords] = useState([]);
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const [recordSaving, setRecordSaving] = useState(false);
+  const [recordError, setRecordError] = useState("");
+
+  const emptyRecord = {
+    patientId: "",
+    doctorId: "",
+    nurseId: "",
+    diagnosis: "",
+    prescription: "",
+    notes: "",
+  };
+
+  const [recordForm, setRecordForm] = useState(emptyRecord);
+
+  /* =======================================================
+     SECURITY MODULE DATA
+  ======================================================= */
+
+  const [vulnerabilities, setVulnerabilities] = useState([]);
+  const [securityEvents, setSecurityEvents] = useState([]);
+
+  /* =======================================================
+     FETCH DASHBOARD
+  ======================================================= */
 
   const fetchDashboard = async () => {
     try {
-      setLoadingDashboard(true);
-      setDashboardError("");
+      setDashboardLoading(true);
 
-      const response = await fetch(`${API_BASE_URL}/dashboard`);
-
-      if (!response.ok) {
-        throw new Error(`Dashboard API returned ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      console.log("REAL DASHBOARD DATA:", data);
+      const data = await apiFetch("/dashboard");
 
       setDashboard({
-        securityScore: data.securityScore ?? 0,
+        securityScore: data.securityScore ?? 100,
         criticalThreats: data.criticalThreats ?? 0,
         vulnerabilities: data.vulnerabilities ?? 0,
         securityEvents: data.securityEvents ?? 0,
         totalUsers: data.totalUsers ?? 0,
         activeUsers: data.activeUsers ?? 0,
         administrators: data.administrators ?? 0,
-        criticalVulnerabilities:
-          data.criticalVulnerabilities ?? 0,
-        highVulnerabilities:
-          data.highVulnerabilities ?? 0,
-        activeVulnerabilities:
-          data.activeVulnerabilities ?? 0,
         lastUpdated: data.lastUpdated ?? null,
       });
     } catch (error) {
       console.error("Dashboard error:", error);
-
-      setDashboardError(
-        "Unable to load live dashboard data from MediShield API."
-      );
     } finally {
-      setLoadingDashboard(false);
+      setDashboardLoading(false);
     }
   };
 
-  // ==========================================
-  // USERS FETCH
-  // ==========================================
+  /* =======================================================
+     FETCH USERS
+  ======================================================= */
 
   const fetchUsers = async () => {
     try {
       setUsersLoading(true);
       setUserError("");
 
-      const response = await fetch(`${API_BASE_URL}/users`);
+      const data = await apiFetch("/users");
 
-      if (!response.ok) {
-        throw new Error(`Users API returned ${response.status}`);
-      }
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data.users)
+        ? data.users
+        : [];
 
-      const data = await response.json();
-
-      console.log("REAL USERS DATA:", data);
-
-      if (Array.isArray(data)) {
-        setUsers(data);
-      } else {
-        setUsers([]);
-      }
+      setUsers(list);
     } catch (error) {
       console.error("Users error:", error);
-
-      setUserError(
-        "Unable to load users from the MediShield API."
-      );
-
+      setUserError(error.message || "Unable to load users.");
       setUsers([]);
     } finally {
       setUsersLoading(false);
     }
   };
 
-  // ==========================================
-  // INITIAL DATA LOAD
-  // ==========================================
+  /* =======================================================
+     FETCH HEALTHCARE DATA
+  ======================================================= */
+
+  const fetchHealthcareData = async () => {
+    try {
+      const results = await Promise.allSettled([
+        apiFetch("/patients"),
+        apiFetch("/doctors"),
+        apiFetch("/nurses"),
+        apiFetch("/medical-records"),
+      ]);
+
+      const [patientsResult, doctorsResult, nursesResult, recordsResult] =
+        results;
+
+      if (patientsResult.status === "fulfilled") {
+        const data = patientsResult.value;
+
+        setPatients(
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data.patients)
+            ? data.patients
+            : []
+        );
+      }
+
+      if (doctorsResult.status === "fulfilled") {
+        const data = doctorsResult.value;
+
+        setDoctors(
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data.doctors)
+            ? data.doctors
+            : []
+        );
+      }
+
+      if (nursesResult.status === "fulfilled") {
+        const data = nursesResult.value;
+
+        setNurses(
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data.nurses)
+            ? data.nurses
+            : []
+        );
+      }
+
+      if (recordsResult.status === "fulfilled") {
+        const data = recordsResult.value;
+
+        setMedicalRecords(
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data.records)
+            ? data.records
+            : []
+        );
+      }
+    } catch (error) {
+      console.error("Healthcare data error:", error);
+    }
+  };
+
+  /* =======================================================
+     FETCH SECURITY MODULES
+  ======================================================= */
+
+  const fetchSecurityModules = async () => {
+    try {
+      const vulnerabilityResult = await apiFetch("/Vulnerability").catch(
+        () => []
+      );
+
+      const eventResult = await apiFetch("/SecurityEvents").catch(() => []);
+
+      setVulnerabilities(
+        Array.isArray(vulnerabilityResult)
+          ? vulnerabilityResult
+          : vulnerabilityResult?.vulnerabilities || []
+      );
+
+      setSecurityEvents(
+        Array.isArray(eventResult)
+          ? eventResult
+          : eventResult?.events || []
+      );
+    } catch (error) {
+      console.error("Security module error:", error);
+    }
+  };
+
+  /* =======================================================
+     INITIAL LOAD
+  ======================================================= */
 
   useEffect(() => {
     if (!authenticated) return;
 
     fetchDashboard();
-    fetchUsers();
+    fetchHealthcareData();
+
+    if (isSecurityUser) {
+      fetchUsers();
+      fetchSecurityModules();
+    }
   }, [authenticated]);
 
-  // ==========================================
-  // USER FORM
-  // ==========================================
+  /* =======================================================
+     LOGIN
+  ======================================================= */
+
+  const handleLoginSuccess = (user, token) => {
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
+
+    setCurrentUser(user);
+    setAuthenticated(true);
+    setActivePage("Dashboard");
+  };
+
+  /* =======================================================
+     LOGOUT
+  ======================================================= */
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    setAuthenticated(false);
+    setCurrentUser(null);
+    setActivePage("Dashboard");
+  };
+
+  /* =======================================================
+     USER CRUD
+  ======================================================= */
 
   const resetUserForm = () => {
     setNewUser({
       name: "",
       email: "",
-      role: "SOC Analyst",
+      password: "",
+      role: "Security Admin",
       department: "",
       status: "Active",
     });
@@ -213,13 +495,16 @@ function App() {
   };
 
   const openEditUser = (user) => {
+    console.log("EDIT USER:", user);
+
     setEditingUserId(user.id);
 
     setNewUser({
-      name: user.name ?? "",
-      email: user.email ?? "",
+      name: user.name || "",
+      email: user.email || "",
+      password: "",
       role: user.role || "SOC Analyst",
-      department: user.department ?? "",
+      department: user.department || "",
       status: user.status || "Active",
     });
 
@@ -227,120 +512,75 @@ function App() {
     setShowAddUser(true);
   };
 
-  // ==========================================
-  // CREATE USER
-  // ==========================================
-
-  const handleAddUser = async (e) => {
+  const handleSaveUser = async (e) => {
     e.preventDefault();
 
-    if (!newUser.name || !newUser.email || !newUser.department) {
+    if (
+      !newUser.name.trim() ||
+      !newUser.email.trim() ||
+      !newUser.department.trim()
+    ) {
       setUserError("Please complete all required fields.");
+      return;
+    }
+
+    if (!editingUserId && !newUser.password.trim()) {
+      setUserError("Password is required when creating a new user.");
       return;
     }
 
     try {
       setUserError("");
 
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newUser),
+      const isEditing = !!editingUserId;
+
+      const endpoint = isEditing
+        ? `/users/${editingUserId}`
+        : "/users";
+
+      const payload = {
+        name: newUser.name.trim(),
+        email: newUser.email.trim(),
+        role: newUser.role,
+        department: newUser.department.trim(),
+        status: newUser.status,
+      };
+
+      if (!isEditing) {
+        payload.password = newUser.password;
+      }
+
+      console.log("USER REQUEST:", {
+        method: isEditing ? "PUT" : "POST",
+        endpoint,
+        payload,
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          errorText || "Failed to create user."
-        );
-      }
+      await apiFetch(endpoint, {
+        method: isEditing ? "PUT" : "POST",
+        body: JSON.stringify(payload),
+      });
 
-      const createdUser = await response.json();
-
-      setUsers((previousUsers) => [
-        ...previousUsers,
-        createdUser,
-      ]);
-
-      resetUserForm();
-      setShowAddUser(false);
-
+      await fetchUsers();
       await fetchDashboard();
+
+      setShowAddUser(false);
+      resetUserForm();
     } catch (error) {
-      console.error("Create user error:", error);
+      console.error("USER SAVE ERROR:", error);
 
       setUserError(
-        error.message || "Unable to create user."
+        error.message || "Unable to save user."
       );
     }
   };
 
-  // ==========================================
-  // UPDATE USER
-  // ==========================================
-
-  const handleUpdateUser = async (e) => {
-    e.preventDefault();
-
-    if (!editingUserId) return;
-
-    if (!newUser.name || !newUser.email || !newUser.department) {
-      setUserError("Please complete all required fields.");
+  const handleDeleteUser = async (id) => {
+    if (!id) {
+      setUserError("Invalid user ID.");
       return;
     }
 
-    try {
-      setUserError("");
-
-      const response = await fetch(
-        `${API_BASE_URL}/users/${editingUserId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(newUser),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-
-        throw new Error(
-          errorText || "Failed to update user."
-        );
-      }
-
-      const updatedUser = await response.json();
-
-      setUsers((previousUsers) =>
-        previousUsers.map((user) =>
-          user.id === editingUserId
-            ? updatedUser
-            : user
-        )
-      );
-
-      resetUserForm();
-      setShowAddUser(false);
-
-      await fetchDashboard();
-    } catch (error) {
-      console.error("Update user error:", error);
-
-      setUserError(
-        error.message || "Unable to update user."
-      );
-    }
-  };
-
-  // ==========================================
-  // DELETE USER
-  // ==========================================
-
-  const handleDeleteUser = async (id) => {
     const confirmed = window.confirm(
       "Remove this user from the MediShield access directory?"
     );
@@ -350,28 +590,20 @@ function App() {
     try {
       setUserError("");
 
-      const response = await fetch(
-        `${API_BASE_URL}/users/${id}`,
-        {
-          method: "DELETE",
-        }
+      console.log("DELETE USER:", id);
+
+      await apiFetch(`/users/${id}`, {
+        method: "DELETE",
+      });
+
+      setUsers((previous) =>
+        previous.filter((user) => user.id !== id)
       );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-
-        throw new Error(
-          errorText || "Failed to delete user."
-        );
-      }
-
-      setUsers((previousUsers) =>
-        previousUsers.filter((user) => user.id !== id)
-      );
-
+      await fetchUsers();
       await fetchDashboard();
     } catch (error) {
-      console.error("Delete user error:", error);
+      console.error("USER DELETE ERROR:", error);
 
       setUserError(
         error.message || "Unable to delete user."
@@ -379,690 +611,548 @@ function App() {
     }
   };
 
-  // ==========================================
-  // LOGOUT
-  // ==========================================
+  /* =======================================================
+     PATIENT CRUD
+  ======================================================= */
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-
-    setAuthenticated(false);
-    setCurrentUser(null);
-    setActivePage("Dashboard");
-
-    resetUserForm();
-    setShowAddUser(false);
+  const resetPatientForm = () => {
+    setPatientForm(emptyPatient);
+    setEditingPatient(null);
+    setPatientError("");
   };
 
-  // ==========================================
-  // LOGIN
-  // ==========================================
-
-  if (!authenticated) {
-    return (
-      <Login
-        onLogin={(user) => {
-          console.log("Authenticated user:", user);
-          console.log("User role:", user?.role);
-
-          setCurrentUser(user);
-          setAuthenticated(true);
-          setActivePage("Dashboard");
-        }}
-      />
-    );
-  }
-
-  // ==========================================
-  // NAVIGATION MENU
-  // ==========================================
-
-  let menuItems = [];
-
-  if (isSecurityUser) {
-    menuItems = [
-      {
-        name: "Dashboard",
-        icon: "⌂",
-      },
-      {
-        name: "Vulnerabilities",
-        icon: "⚠",
-        count: dashboard.vulnerabilities,
-      },
-      {
-        name: "Threat Intelligence",
-        icon: "◈",
-      },
-      {
-        name: "Security Events",
-        icon: "◉",
-        count: dashboard.securityEvents,
-      },
-      {
-        name: "Users",
-        icon: "♙",
-        count: dashboard.totalUsers,
-      },
-      {
-        name: "Audit Logs",
-        icon: "▤",
-      },
-    ];
-  }
-
-  if (isDoctor) {
-    menuItems = [
-      {
-        name: "Dashboard",
-        icon: "⌂",
-      },
-      {
-        name: "My Patients",
-        icon: "♙",
-      },
-      {
-        name: "Medical History",
-        icon: "▤",
-      },
-      {
-        name: "Medications",
-        icon: "✚",
-      },
-      {
-        name: "Appointments",
-        icon: "◷",
-      },
-    ];
-  }
-
-  if (isNurse) {
-    menuItems = [
-      {
-        name: "Dashboard",
-        icon: "⌂",
-      },
-      {
-        name: "Today's Appointments",
-        icon: "◷",
-      },
-      {
-        name: "Patients",
-        icon: "♙",
-      },
-      {
-        name: "Book Appointment",
-        icon: "＋",
-      },
-    ];
-  }
-
-  if (isPatient) {
-    menuItems = [
-      {
-        name: "Dashboard",
-        icon: "⌂",
-      },
-      {
-        name: "My Medical History",
-        icon: "▤",
-      },
-      {
-        name: "My Medications",
-        icon: "✚",
-      },
-      {
-        name: "Appointment History",
-        icon: "◷",
-      },
-      {
-        name: "Book Appointment",
-        icon: "＋",
-      },
-    ];
-  }
-
-  // ==========================================
-  // USER STATS
-  // ==========================================
-
-  const activeUsers = users.filter(
-    (user) => user.status === "Active"
-  ).length;
-
-  const disabledUsers = users.filter(
-    (user) => user.status === "Disabled"
-  ).length;
-
-  const adminUsers = users.filter(
-    (user) =>
-      user.role === "Security Admin" ||
-      user.role === "Administrator" ||
-      user.role === "Admin"
-  ).length;
-
-  // ==========================================
-  // SECURITY SCORE LABEL
-  // ==========================================
-
-  const getScoreStatus = (score) => {
-    if (score >= 90) return "SECURE";
-    if (score >= 75) return "GOOD";
-    if (score >= 50) return "ATTENTION";
-
-    return "AT RISK";
+  const openAddPatient = () => {
+    resetPatientForm();
+    setShowPatientModal(true);
   };
 
-  // ==========================================
-  // SECURITY DASHBOARD
-  // ==========================================
+  const openEditPatient = (patient) => {
+    setEditingPatient(patient);
 
-  const renderDashboard = () => {
-    const score = Number(dashboard.securityScore) || 0;
+    setPatientForm({
+      name: patient.name || "",
+      age: patient.age ?? "",
+      gender: patient.gender || "Male",
+      bloodGroup: patient.bloodGroup || "",
+      phone: patient.phone || "",
+      email: patient.email || "",
+      address: patient.address || "",
+    });
 
+    setPatientError("");
+    setShowPatientModal(true);
+  };
+
+  const savePatient = async (e) => {
+    e.preventDefault();
+
+    setPatientSaving(true);
+    setPatientError("");
+
+    try {
+      const payload = {
+        ...patientForm,
+        age: Number(patientForm.age),
+      };
+
+      const endpoint = editingPatient
+        ? `/patients/${editingPatient.patientId}`
+        : "/patients/register";
+
+      const body = editingPatient
+        ? payload
+        : {
+            ...payload,
+            password: "Patient@123",
+          };
+
+      await apiFetch(endpoint, {
+        method: editingPatient ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      });
+
+      setShowPatientModal(false);
+      resetPatientForm();
+
+      await fetchHealthcareData();
+      await fetchDashboard();
+    } catch (error) {
+      console.error("PATIENT SAVE ERROR:", error);
+      setPatientError(error.message || "Unable to save patient.");
+    } finally {
+      setPatientSaving(false);
+    }
+  };
+
+  const deletePatient = async (patient) => {
+    const id = patient.patientId;
+
+    if (!id) {
+      alert("Patient ID is missing.");
+      return;
+    }
+
+    if (!window.confirm(`Delete ${patient.name} (${id})?`)) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/patients/${id}`, {
+        method: "DELETE",
+      });
+
+      await fetchHealthcareData();
+      await fetchDashboard();
+    } catch (error) {
+      alert(error.message || "Unable to delete patient.");
+    }
+  };
+
+  /* =======================================================
+     DOCTOR CRUD
+  ======================================================= */
+
+  const resetDoctorForm = () => {
+    setDoctorForm(emptyDoctor);
+    setEditingDoctor(null);
+    setDoctorError("");
+  };
+
+  const openAddDoctor = () => {
+    resetDoctorForm();
+    setShowDoctorModal(true);
+  };
+
+  const openEditDoctor = (doctor) => {
+    setEditingDoctor(doctor);
+
+    setDoctorForm({
+      name: doctor.name || "",
+      specialization: doctor.specialization || "",
+      phone: doctor.phone || "",
+      email: doctor.email || "",
+    });
+
+    setDoctorError("");
+    setShowDoctorModal(true);
+  };
+
+  const saveDoctor = async (e) => {
+    e.preventDefault();
+
+    setDoctorSaving(true);
+    setDoctorError("");
+
+    try {
+      const endpoint = editingDoctor
+        ? `/doctors/${editingDoctor.doctorId}`
+        : "/doctors/register";
+
+      const body = editingDoctor
+        ? doctorForm
+        : {
+            ...doctorForm,
+            password: "Doctor@123",
+          };
+
+      await apiFetch(endpoint, {
+        method: editingDoctor ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      });
+
+      setShowDoctorModal(false);
+      resetDoctorForm();
+
+      await fetchHealthcareData();
+      await fetchDashboard();
+    } catch (error) {
+      console.error("DOCTOR SAVE ERROR:", error);
+      setDoctorError(error.message || "Unable to save doctor.");
+    } finally {
+      setDoctorSaving(false);
+    }
+  };
+
+  const deleteDoctor = async (doctor) => {
+    const id = doctor.doctorId;
+
+    if (!id) {
+      alert("Doctor ID is missing.");
+      return;
+    }
+
+    if (!window.confirm(`Delete ${doctor.name} (${id})?`)) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/doctors/${id}`, {
+        method: "DELETE",
+      });
+
+      await fetchHealthcareData();
+      await fetchDashboard();
+    } catch (error) {
+      alert(error.message || "Unable to delete doctor.");
+    }
+  };
+
+  /* =======================================================
+     NURSE CRUD
+  ======================================================= */
+
+  const resetNurseForm = () => {
+    setNurseForm(emptyNurse);
+    setEditingNurse(null);
+    setNurseError("");
+  };
+
+  const openAddNurse = () => {
+    resetNurseForm();
+    setShowNurseModal(true);
+  };
+
+  const openEditNurse = (nurse) => {
+    setEditingNurse(nurse);
+
+    setNurseForm({
+      name: nurse.name || "",
+      department: nurse.department || "",
+      phone: nurse.phone || "",
+      email: nurse.email || "",
+    });
+
+    setNurseError("");
+    setShowNurseModal(true);
+  };
+
+  const saveNurse = async (e) => {
+    e.preventDefault();
+
+    setNurseSaving(true);
+    setNurseError("");
+
+    try {
+      const endpoint = editingNurse
+        ? `/nurses/${editingNurse.nurseId}`
+        : "/nurses/register";
+
+      const body = editingNurse
+        ? nurseForm
+        : {
+            ...nurseForm,
+            password: "Nurse@123",
+          };
+
+      await apiFetch(endpoint, {
+        method: editingNurse ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      });
+
+      setShowNurseModal(false);
+      resetNurseForm();
+
+      await fetchHealthcareData();
+      await fetchDashboard();
+    } catch (error) {
+      console.error("NURSE SAVE ERROR:", error);
+      setNurseError(error.message || "Unable to save nurse.");
+    } finally {
+      setNurseSaving(false);
+    }
+  };
+
+  const deleteNurse = async (nurse) => {
+    const id = nurse.nurseId;
+
+    if (!id) {
+      alert("Nurse ID is missing.");
+      return;
+    }
+
+    if (!window.confirm(`Delete ${nurse.name} (${id})?`)) {
+      return;
+    }
+
+    try {
+      await apiFetch(`/nurses/${id}`, {
+        method: "DELETE",
+      });
+
+      await fetchHealthcareData();
+      await fetchDashboard();
+    } catch (error) {
+      alert(error.message || "Unable to delete nurse.");
+    }
+  };
+
+  /* =======================================================
+     MEDICAL RECORD CRUD
+  ======================================================= */
+
+  const resetRecordForm = () => {
+    setRecordForm(emptyRecord);
+    setRecordError("");
+  };
+
+  const saveMedicalRecord = async (e) => {
+    e.preventDefault();
+
+    setRecordSaving(true);
+    setRecordError("");
+
+    try {
+      const payload = {
+        patientId: Number(recordForm.patientId),
+        doctorId: Number(recordForm.doctorId),
+        nurseId: Number(recordForm.nurseId),
+        diagnosis: recordForm.diagnosis,
+        prescription: recordForm.prescription,
+        notes: recordForm.notes,
+      };
+
+      await apiFetch("/medical-records", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setShowRecordModal(false);
+      resetRecordForm();
+
+      await fetchHealthcareData();
+    } catch (error) {
+      console.error("MEDICAL RECORD ERROR:", error);
+
+      setRecordError(
+        error.message || "Unable to create medical record."
+      );
+    } finally {
+      setRecordSaving(false);
+    }
+  };
+
+  /* =======================================================
+     NAVIGATION
+  ======================================================= */
+
+  const securityMenu = [
+    "Dashboard",
+    "Vulnerabilities",
+    "Threat Intelligence",
+    "Security Events",
+    "Users",
+    "Audit Logs",
+    "Healthcare Dashboard",
+    "Patients",
+    "Doctors",
+    "Nurses",
+    "Medical Records",
+  ];
+
+  const doctorMenu = [
+    "Dashboard",
+    "My Patients",
+    "Medical History",
+    "Medications",
+    "Appointments",
+  ];
+
+  const nurseMenu = [
+    "Dashboard",
+    "Today's Appointments",
+    "Patients",
+    "Book Appointment",
+  ];
+
+  const patientMenu = [
+    "Dashboard",
+    "My Medical History",
+    "My Medications",
+    "Appointment History",
+    "Book Appointment",
+  ];
+
+  const menuItems = isSecurityUser
+    ? securityMenu
+    : isDoctor
+    ? doctorMenu
+    : isNurse
+    ? nurseMenu
+    : patientMenu;
+
+  /* =======================================================
+     SECURITY DASHBOARD
+  ======================================================= */
+
+  const renderSecurityDashboard = () => {
     return (
-      <>
-        <div className="page-heading dashboard-heading">
+      <div className="page-container">
+        <div className="page-heading">
           <div>
-            <div className="page-kicker">
-              MEDISHIELD AI // SECURITY OPERATIONS
+            <div className="section-kicker">
+              SECURITY OPERATIONS CENTER
             </div>
 
-            <h1>Security Command Center</h1>
+            <h1>MediShield Command Center</h1>
 
             <p>
-              Real-time visibility into healthcare security
-              posture, threats, vulnerabilities and operational
-              activity.
+              Healthcare infrastructure security monitoring and
+              access control.
             </p>
           </div>
 
-          <div className="system-live">
-            <span className="live-dot"></span>
-            SYSTEM OPERATIONAL
+          <div className="connection-status">
+            <span className="status-dot"></span>
+            API CONNECTED
           </div>
         </div>
 
-        {dashboardError && (
-          <div className="api-alert">
-            <span className="api-alert-icon">!</span>
+        <div className="metrics-grid">
+          <MetricCard
+            label="SECURITY SCORE"
+            value={`${dashboard.securityScore}%`}
+            subtext="Overall protection"
+          />
 
-            <div>
-              <strong>LIVE API CONNECTION ISSUE</strong>
-              <small>{dashboardError}</small>
-            </div>
-          </div>
-        )}
+          <MetricCard
+            label="CRITICAL THREATS"
+            value={dashboard.criticalThreats}
+            subtext="Requires attention"
+          />
 
-        {/* PRIMARY SECURITY METRICS */}
+          <MetricCard
+            label="VULNERABILITIES"
+            value={dashboard.vulnerabilities}
+            subtext="Tracked findings"
+          />
 
-        <div className="dashboard-cards">
+          <MetricCard
+            label="SECURITY EVENTS"
+            value={dashboard.securityEvents}
+            subtext="Recent events"
+          />
 
-          <div className="security-card score-card">
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  SECURITY POSTURE
-                </span>
+          <MetricCard
+            label="TOTAL USERS"
+            value={dashboard.totalUsers}
+            subtext="Access directory"
+          />
 
-                <small>
-                  Overall environment score
-                </small>
-              </div>
-
-              <span className="card-icon">◈</span>
-            </div>
-
-            <div className="score-layout">
-              <div
-                className="score-ring"
-                style={{
-                  "--score": `${Math.min(score, 100) * 3.6}deg`,
-                }}
-              >
-                <div className="score-ring-inner">
-                  <strong>
-                    {loadingDashboard ? "--" : score}
-                  </strong>
-
-                  {!loadingDashboard && (
-                    <span>%</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="score-details">
-                <strong>
-                  {getScoreStatus(score)}
-                </strong>
-
-                <span>
-                  Healthcare infrastructure
-                </span>
-
-                <div className="mini-progress">
-                  <div
-                    style={{
-                      width: `${Math.min(score, 100)}%`,
-                    }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="security-card danger-card">
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  CRITICAL THREATS
-                </span>
-
-                <small>
-                  Immediate investigation
-                </small>
-              </div>
-
-              <span className="card-icon">⚠</span>
-            </div>
-
-            <div className="metric-value">
-              {loadingDashboard
-                ? "--"
-                : dashboard.criticalThreats}
-            </div>
-
-            <div className="metric-footer danger">
-              <span className="metric-status-dot"></span>
-              ACTIVE SECURITY THREATS
-            </div>
-          </div>
-
-          <div className="security-card warning-card">
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  VULNERABILITIES
-                </span>
-
-                <small>
-                  Across protected systems
-                </small>
-              </div>
-
-              <span className="card-icon">△</span>
-            </div>
-
-            <div className="metric-value">
-              {loadingDashboard
-                ? "--"
-                : dashboard.vulnerabilities}
-            </div>
-
-            <div className="metric-footer warning">
-              <span className="metric-status-dot"></span>
-              {dashboard.highVulnerabilities} HIGH PRIORITY
-            </div>
-          </div>
-
-          <div className="security-card event-card">
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  SECURITY EVENTS
-                </span>
-
-                <small>
-                  Monitored by platform
-                </small>
-              </div>
-
-              <span className="card-icon">◉</span>
-            </div>
-
-            <div className="metric-value">
-              {loadingDashboard
-                ? "--"
-                : dashboard.securityEvents}
-            </div>
-
-            <div className="metric-footer blue">
-              <span className="metric-status-dot"></span>
-              EVENTS MONITORED
-            </div>
-          </div>
-        </div>
-
-        {/* OPERATIONAL SNAPSHOT */}
-
-        <div className="section-heading">
-          <div>
-            <span>OPERATIONAL SNAPSHOT</span>
-
-            <small>
-              Database-backed platform statistics
-            </small>
-          </div>
-        </div>
-
-        <div className="user-stats">
-
-          <div className="user-stat">
-            <div className="stat-symbol">♙</div>
-
-            <div>
-              <span>TOTAL USERS</span>
-
-              <strong>
-                {loadingDashboard
-                  ? "--"
-                  : dashboard.totalUsers}
-              </strong>
-            </div>
-          </div>
-
-          <div className="user-stat">
-            <div className="stat-symbol success">
-              ●
-            </div>
-
-            <div>
-              <span>ACTIVE USERS</span>
-
-              <strong>
-                {loadingDashboard
-                  ? "--"
-                  : dashboard.activeUsers}
-              </strong>
-            </div>
-          </div>
-
-          <div className="user-stat">
-            <div className="stat-symbol blue">
-              ◆
-            </div>
-
-            <div>
-              <span>ADMINISTRATORS</span>
-
-              <strong>
-                {loadingDashboard
-                  ? "--"
-                  : dashboard.administrators}
-              </strong>
-            </div>
-          </div>
-
-          <div className="user-stat">
-            <div className="stat-symbol warning">
-              !
-            </div>
-
-            <div>
-              <span>HIGH VULNERABILITIES</span>
-
-              <strong>
-                {loadingDashboard
-                  ? "--"
-                  : dashboard.highVulnerabilities}
-              </strong>
-            </div>
-          </div>
-        </div>
-
-        {/* SOC MONITORING */}
-
-        <div className="section-heading monitoring-heading">
-          <div>
-            <span>SECURITY OPERATIONS</span>
-
-            <small>
-              Current threat and infrastructure posture
-            </small>
-          </div>
-
-          <div className="live-pill">
-            <span></span>
-            LIVE MONITORING
-          </div>
+          <MetricCard
+            label="ACTIVE USERS"
+            value={dashboard.activeUsers}
+            subtext="Currently active"
+          />
         </div>
 
         <div className="dashboard-grid">
-
-          {/* THREAT MONITOR */}
-
-          <div className="dashboard-panel threat-panel">
-
-            <div className="panel-header">
+          <div className="content-card">
+            <div className="card-header">
               <div>
-                <span className="panel-label">
-                  THREAT MONITOR
-                </span>
-
-                <h2>Security Activity</h2>
-
-                <p>
-                  Live security indicators from the
-                  MediShield platform
-                </p>
+                <div className="section-kicker">SYSTEM STATUS</div>
+                <h2>Infrastructure Health</h2>
               </div>
-
-              <span className="panel-live">
-                LIVE
-              </span>
             </div>
 
-            <div className="threat-list">
-
-              <div className="threat-row">
-                <div className="threat-indicator warning">
-                  ◉
-                </div>
-
-                <div className="threat-content">
-                  <strong>Security Events</strong>
-
-                  <small>
-                    {dashboard.securityEvents} event
-                    {dashboard.securityEvents !== 1
-                      ? "s"
-                      : ""}{" "}
-                    currently recorded
-                  </small>
-                </div>
-
-                <div className="threat-value">
-                  {dashboard.securityEvents}
-                </div>
+            <div className="system-list">
+              <div className="system-row">
+                <span>API Server</span>
+                <StatusBadge status="Active" />
               </div>
 
-              <div className="threat-row">
-                <div className="threat-indicator danger">
-                  ⚠
-                </div>
-
-                <div className="threat-content">
-                  <strong>Critical Threats</strong>
-
-                  <small>
-                    Security incidents requiring
-                    investigation
-                  </small>
-                </div>
-
-                <div className="threat-value danger-text">
-                  {dashboard.criticalThreats}
-                </div>
+              <div className="system-row">
+                <span>PostgreSQL Database</span>
+                <StatusBadge status="Active" />
               </div>
 
-              <div className="threat-row">
-                <div className="threat-indicator warning">
-                  △
-                </div>
-
-                <div className="threat-content">
-                  <strong>
-                    Active Vulnerabilities
-                  </strong>
-
-                  <small>
-                    Identified weaknesses across
-                    protected systems
-                  </small>
-                </div>
-
-                <div className="threat-value warning-text">
-                  {dashboard.activeVulnerabilities}
-                </div>
+              <div className="system-row">
+                <span>JWT Authentication</span>
+                <StatusBadge status="Active" />
               </div>
 
-              <div className="threat-row">
-                <div className="threat-indicator blue">
-                  ◈
-                </div>
-
-                <div className="threat-content">
-                  <strong>
-                    High Priority Vulnerabilities
-                  </strong>
-
-                  <small>
-                    Issues requiring security team
-                    attention
-                  </small>
-                </div>
-
-                <div className="threat-value blue-text">
-                  {dashboard.highVulnerabilities}
-                </div>
+              <div className="system-row">
+                <span>Healthcare Module</span>
+                <StatusBadge status="Active" />
               </div>
 
-            </div>
-
-            <div className="panel-footer">
-              <span className="footer-dot"></span>
-              Monitoring API telemetry
+              <div className="system-row">
+                <span>Threat Monitoring</span>
+                <StatusBadge status="Active" />
+              </div>
             </div>
           </div>
 
-          {/* INFRASTRUCTURE */}
-
-          <div className="dashboard-panel status-panel">
-
-            <div className="panel-header">
+          <div className="content-card">
+            <div className="card-header">
               <div>
-                <span className="panel-label">
-                  INFRASTRUCTURE
-                </span>
-
-                <h2>System Health</h2>
-
-                <p>
-                  Protected healthcare environment
-                </p>
+                <div className="section-kicker">SECURITY SUMMARY</div>
+                <h2>Current Environment</h2>
               </div>
             </div>
 
-            <div className="system-health">
-
-              <div className="health-item">
-                <div className="health-icon">⌁</div>
-
-                <div>
-                  <strong>Hospital Network</strong>
-                  <small>Core infrastructure</small>
-                </div>
-
-                <span className="health-online">
-                  ONLINE
-                </span>
+            <div className="summary-list">
+              <div>
+                <strong>{patients.length}</strong>
+                <span>Registered Patients</span>
               </div>
 
-              <div className="health-item">
-                <div className="health-icon">▣</div>
-
-                <div>
-                  <strong>Patient Database</strong>
-                  <small>Protected storage</small>
-                </div>
-
-                <span className="health-online">
-                  SECURE
-                </span>
+              <div>
+                <strong>{doctors.length}</strong>
+                <span>Doctors</span>
               </div>
 
-              <div className="health-item">
-                <div className="health-icon">◇</div>
-
-                <div>
-                  <strong>Endpoint Protection</strong>
-                  <small>Managed devices</small>
-                </div>
-
-                <span className="health-online">
-                  ACTIVE
-                </span>
+              <div>
+                <strong>{nurses.length}</strong>
+                <span>Nurses</span>
               </div>
 
-              <div className="health-item">
-                <div className="health-icon">◈</div>
-
-                <div>
-                  <strong>Threat Intelligence</strong>
-                  <small>Security intelligence</small>
-                </div>
-
-                <span className="health-online">
-                  SYNCED
-                </span>
+              <div>
+                <strong>{medicalRecords.length}</strong>
+                <span>Medical Records</span>
               </div>
-
-            </div>
-
-            <div className="infrastructure-footer">
-              <span className="footer-dot"></span>
-              Environment monitoring active
             </div>
           </div>
         </div>
 
-        {dashboard.lastUpdated && (
-          <div className="last-updated">
-            <span>LAST API SYNCHRONIZATION</span>
-
-            {new Date(
-              dashboard.lastUpdated
-            ).toLocaleString()}
+        <div className="content-card">
+          <div className="card-header">
+            <div>
+              <div className="section-kicker">SECURITY CONTROLS</div>
+              <h2>Protected Components</h2>
+            </div>
           </div>
-        )}
-      </>
+
+          <div className="protection-grid">
+            <div>✓ JWT Authentication</div>
+            <div>✓ Role-Based Access</div>
+            <div>✓ PostgreSQL Database</div>
+            <div>✓ Healthcare Access Control</div>
+            <div>✓ User Audit Management</div>
+            <div>✓ API Health Monitoring</div>
+          </div>
+        </div>
+      </div>
     );
   };
 
-  // ==========================================
-  // USERS PAGE
-  // ==========================================
+  /* =======================================================
+     USERS PAGE
+  ======================================================= */
 
   const renderUsers = () => {
     return (
-      <>
+      <div className="page-container">
         <div className="page-heading">
-
           <div>
-            <div className="page-kicker">
-              MEDISHIELD AI // ACCESS CONTROL
-            </div>
-
+            <div className="section-kicker">ACCESS CONTROL</div>
             <h1>User Management</h1>
-
             <p>
-              Manage authorized personnel and security
-              access across the healthcare environment.
+              Manage authorized users and role-based access.
             </p>
           </div>
 
           <button
+            type="button"
             className="primary-action"
             onClick={openAddUser}
           >
@@ -1070,1390 +1160,2080 @@ function App() {
           </button>
         </div>
 
-        <div className="user-stats">
-
-          <div className="user-stat">
-            <div className="stat-symbol">♙</div>
-
-            <div>
-              <span>TOTAL USERS</span>
-
-              <strong>
-                {dashboard.totalUsers || users.length}
-              </strong>
-            </div>
+        {userError && (
+          <div className="error-banner">
+            {userError}
           </div>
+        )}
 
-          <div className="user-stat">
-            <div className="stat-symbol success">
-              ●
-            </div>
-
+        <div className="content-card table-card">
+          <div className="card-header">
             <div>
-              <span>ACTIVE</span>
-
-              <strong>
-                {dashboard.activeUsers || activeUsers}
-              </strong>
-            </div>
-          </div>
-
-          <div className="user-stat">
-            <div className="stat-symbol danger">
-              ×
+              <div className="section-kicker">
+                AUTHORIZED DIRECTORY
+              </div>
+              <h2>System Users</h2>
             </div>
 
-            <div>
-              <span>DISABLED</span>
-
-              <strong>{disabledUsers}</strong>
-            </div>
-          </div>
-
-          <div className="user-stat">
-            <div className="stat-symbol blue">
-              ◆
-            </div>
-
-            <div>
-              <span>ADMINISTRATORS</span>
-
-              <strong>
-                {dashboard.administrators || adminUsers}
-              </strong>
-            </div>
-          </div>
-        </div>
-
-        <div className="dashboard-panel users-panel">
-
-          <div className="panel-header users-header">
-
-            <div>
-              <span className="panel-label">
-                AUTHORIZED PERSONNEL
-              </span>
-
-              <h2>Security Access Directory</h2>
-
-              <p>
-                Users currently registered in PostgreSQL
-              </p>
-            </div>
-
-            <span className="user-count">
+            <span className="record-count">
               {users.length} USERS
             </span>
           </div>
 
-          {userError && (
-            <div className="inline-error">
-              <strong>USER OPERATION ERROR</strong>
-              <span>{userError}</span>
-            </div>
-          )}
-
-          {usersLoading && (
+          {usersLoading ? (
             <div className="loading-state">
-              <span className="loading-ring"></span>
-              Loading security directory...
+              Loading users...
+            </div>
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>USER</th>
+                    <th>EMAIL</th>
+                    <th>ROLE</th>
+                    <th>DEPARTMENT</th>
+                    <th>STATUS</th>
+                    <th>ACTIONS</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {users.length === 0 ? (
+                    <tr>
+                      <td colSpan="7">
+                        <div className="empty-table">
+                          No users found.
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    users.map((user) => (
+                      <tr key={user.id}>
+                        <td>{user.id}</td>
+
+                        <td>
+                          <strong>{user.name}</strong>
+                        </td>
+
+                        <td>{user.email}</td>
+
+                        <td>
+                          <span className="role-badge">
+                            {user.role}
+                          </span>
+                        </td>
+
+                        <td>
+                          {user.department || "—"}
+                        </td>
+
+                        <td>
+                          <StatusBadge status={user.status} />
+                        </td>
+
+                        <td>
+                          <div className="table-actions">
+                            <button
+                              type="button"
+                              className="edit-button"
+                              onClick={() =>
+                                openEditUser(user)
+                              }
+                            >
+                              EDIT
+                            </button>
+
+                            <button
+                              type="button"
+                              className="delete-button"
+                              onClick={() =>
+                                handleDeleteUser(user.id)
+                              }
+                            >
+                              DELETE
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
+        </div>
+      </div>
+    );
+  };
 
-          <div className="users-table-wrapper">
+  /* =======================================================
+     PATIENT PAGE
+  ======================================================= */
 
-            <table className="users-table">
+  const renderPatients = () => {
+    return (
+      <div className="page-container">
+        <div className="page-heading">
+          <div>
+            <div className="section-kicker">
+              HEALTHCARE MANAGEMENT
+            </div>
+            <h1>Patients</h1>
+            <p>Manage registered hospital patients.</p>
+          </div>
 
+          {isSecurityUser && (
+            <button
+              type="button"
+              className="primary-action"
+              onClick={openAddPatient}
+            >
+              + ADD PATIENT
+            </button>
+          )}
+        </div>
+
+        <div className="content-card table-card">
+          <div className="card-header">
+            <h2>Patient Directory</h2>
+
+            <span className="record-count">
+              {patients.length} PATIENTS
+            </span>
+          </div>
+
+          <div className="table-wrapper">
+            <table className="data-table">
               <thead>
                 <tr>
-                  <th>USER</th>
-                  <th>ROLE</th>
-                  <th>DEPARTMENT</th>
-                  <th>STATUS</th>
-                  <th>ACTIONS</th>
+                  <th>ID</th>
+                  <th>NAME</th>
+                  <th>AGE</th>
+                  <th>GENDER</th>
+                  <th>BLOOD</th>
+                  <th>PHONE</th>
+                  <th>EMAIL</th>
+                  {isSecurityUser && <th>ACTIONS</th>}
                 </tr>
               </thead>
 
               <tbody>
-
-                {users.length === 0 ? (
+                {patients.length === 0 ? (
                   <tr>
-                    <td colSpan="5">
+                    <td colSpan="8">
                       <div className="empty-table">
-                        <strong>
-                          No users found
-                        </strong>
-
-                        <span>
-                          No security users are currently
-                          registered.
-                        </span>
+                        No patients found.
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  users.map((user) => (
-                    <tr key={user.id}>
-
+                  patients.map((patient) => (
+                    <tr key={patient.patientId}>
+                      <td>{patient.patientId}</td>
                       <td>
-                        <div className="user-info">
+                        <strong>{patient.name}</strong>
+                      </td>
+                      <td>{patient.age}</td>
+                      <td>{patient.gender}</td>
+                      <td>{patient.bloodGroup || "—"}</td>
+                      <td>{patient.phone || "—"}</td>
+                      <td>{patient.email || "—"}</td>
 
-                          <div className="user-avatar">
-                            {(user.name || "?")
-                              .charAt(0)
-                              .toUpperCase()}
+                      {isSecurityUser && (
+                        <td>
+                          <div className="table-actions">
+                            <button
+                              type="button"
+                              className="edit-button"
+                              onClick={() =>
+                                openEditPatient(patient)
+                              }
+                            >
+                              EDIT
+                            </button>
+
+                            <button
+                              type="button"
+                              className="delete-button"
+                              onClick={() =>
+                                deletePatient(patient)
+                              }
+                            >
+                              DELETE
+                            </button>
                           </div>
-
-                          <div>
-                            <strong>
-                              {user.name}
-                            </strong>
-
-                            <small>
-                              {user.email}
-                            </small>
-                          </div>
-
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="role-badge">
-                          {user.role || "Not Assigned"}
-                        </span>
-                      </td>
-
-                      <td>
-                        <span className="department-cell">
-                          {user.department ||
-                            "Not Assigned"}
-                        </span>
-                      </td>
-
-                      <td>
-                        <span
-                          className={`status-badge ${
-                            user.status === "Active"
-                              ? "active"
-                              : user.status === "Disabled"
-                                ? "disabled"
-                                : "unknown"
-                          }`}
-                        >
-                          <span></span>
-                          {user.status || "Unknown"}
-                        </span>
-                      </td>
-
-                      <td>
-                        <div className="table-actions">
-
-                          <button
-                            className="edit-button"
-                            onClick={() =>
-                              openEditUser(user)
-                            }
-                          >
-                            EDIT
-                          </button>
-
-                          <button
-                            className="delete-button"
-                            onClick={() =>
-                              handleDeleteUser(user.id)
-                            }
-                          >
-                            DELETE
-                          </button>
-
-                        </div>
-                      </td>
-
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
-
               </tbody>
             </table>
           </div>
         </div>
-      </>
+      </div>
     );
   };
 
-  // ==========================================
-  // SECURITY MODULE PLACEHOLDER
-  // ==========================================
+  /* =======================================================
+     DOCTORS PAGE
+  ======================================================= */
 
-  const renderModule = (title, description, icon) => {
+  const renderDoctors = () => {
     return (
-      <>
+      <div className="page-container">
         <div className="page-heading">
-
           <div>
-            <div className="page-kicker">
-              MEDISHIELD AI // SECURITY MODULE
+            <div className="section-kicker">
+              HEALTHCARE MANAGEMENT
             </div>
+
+            <h1>Doctors</h1>
+
+            <p>
+              Manage doctors and medical specializations.
+            </p>
+          </div>
+
+          {isSecurityUser && (
+            <button
+              type="button"
+              className="primary-action"
+              onClick={openAddDoctor}
+            >
+              + ADD DOCTOR
+            </button>
+          )}
+        </div>
+
+        {doctorError && (
+          <div className="error-banner">
+            {doctorError}
+          </div>
+        )}
+
+        <div className="content-card table-card">
+          <div className="card-header">
+            <h2>Doctor Directory</h2>
+
+            <span className="record-count">
+              {doctors.length} DOCTORS
+            </span>
+          </div>
+
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>NAME</th>
+                  <th>SPECIALIZATION</th>
+                  <th>PHONE</th>
+                  <th>EMAIL</th>
+                  {isSecurityUser && <th>ACTIONS</th>}
+                </tr>
+              </thead>
+
+              <tbody>
+                {doctors.length === 0 ? (
+                  <tr>
+                    <td colSpan="6">
+                      <div className="empty-table">
+                        No doctors found.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  doctors.map((doctor) => (
+                    <tr key={doctor.doctorId}>
+                      <td>{doctor.doctorId}</td>
+
+                      <td>
+                        <strong>{doctor.name}</strong>
+                      </td>
+
+                      <td>{doctor.specialization || "—"}</td>
+
+                      <td>{doctor.phone || "—"}</td>
+
+                      <td>{doctor.email || "—"}</td>
+
+                      {isSecurityUser && (
+                        <td>
+                          <div className="table-actions">
+                            <button
+                              type="button"
+                              className="edit-button"
+                              onClick={() =>
+                                openEditDoctor(doctor)
+                              }
+                            >
+                              EDIT
+                            </button>
+
+                            <button
+                              type="button"
+                              className="delete-button"
+                              onClick={() =>
+                                deleteDoctor(doctor)
+                              }
+                            >
+                              DELETE
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* =======================================================
+     NURSES PAGE
+  ======================================================= */
+
+  const renderNurses = () => {
+    return (
+      <div className="page-container">
+        <div className="page-heading">
+          <div>
+            <div className="section-kicker">
+              HEALTHCARE MANAGEMENT
+            </div>
+
+            <h1>Nurses</h1>
+
+            <p>
+              Manage nursing staff and departments.
+            </p>
+          </div>
+
+          {isSecurityUser && (
+            <button
+              type="button"
+              className="primary-action"
+              onClick={openAddNurse}
+            >
+              + ADD NURSE
+            </button>
+          )}
+        </div>
+
+        {nurseError && (
+          <div className="error-banner">
+            {nurseError}
+          </div>
+        )}
+
+        <div className="content-card table-card">
+          <div className="card-header">
+            <h2>Nursing Directory</h2>
+
+            <span className="record-count">
+              {nurses.length} NURSES
+            </span>
+          </div>
+
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>NAME</th>
+                  <th>DEPARTMENT</th>
+                  <th>PHONE</th>
+                  <th>EMAIL</th>
+                  {isSecurityUser && <th>ACTIONS</th>}
+                </tr>
+              </thead>
+
+              <tbody>
+                {nurses.length === 0 ? (
+                  <tr>
+                    <td colSpan="6">
+                      <div className="empty-table">
+                        No nurses found.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  nurses.map((nurse) => (
+                    <tr key={nurse.nurseId}>
+                      <td>{nurse.nurseId}</td>
+
+                      <td>
+                        <strong>{nurse.name}</strong>
+                      </td>
+
+                      <td>{nurse.department || "—"}</td>
+
+                      <td>{nurse.phone || "—"}</td>
+
+                      <td>{nurse.email || "—"}</td>
+
+                      {isSecurityUser && (
+                        <td>
+                          <div className="table-actions">
+                            <button
+                              type="button"
+                              className="edit-button"
+                              onClick={() =>
+                                openEditNurse(nurse)
+                              }
+                            >
+                              EDIT
+                            </button>
+
+                            <button
+                              type="button"
+                              className="delete-button"
+                              onClick={() =>
+                                deleteNurse(nurse)
+                              }
+                            >
+                              DELETE
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* =======================================================
+     MEDICAL RECORDS
+  ======================================================= */
+
+  const getPatientName = (id) => {
+    const patient = patients.find(
+      (p) => Number(p.patientId) === Number(id)
+    );
+
+    return patient?.name || `Patient #${id}`;
+  };
+
+  const getDoctorName = (id) => {
+    const doctor = doctors.find(
+      (d) => Number(d.doctorId) === Number(id)
+    );
+
+    return doctor?.name || `Doctor #${id}`;
+  };
+
+  const getNurseName = (id) => {
+    const nurse = nurses.find(
+      (n) => Number(n.nurseId) === Number(id)
+    );
+
+    return nurse?.name || `Nurse #${id}`;
+  };
+
+  const renderMedicalRecords = () => {
+    return (
+      <div className="page-container">
+        <div className="page-heading">
+          <div>
+            <div className="section-kicker">
+              CLINICAL SECURITY
+            </div>
+
+            <h1>Medical Records</h1>
+
+            <p>
+              Controlled access to patient medical information.
+            </p>
+          </div>
+
+          {isSecurityUser && (
+            <button
+              type="button"
+              className="primary-action"
+              onClick={() => {
+                resetRecordForm();
+                setShowRecordModal(true);
+              }}
+            >
+              + ADD RECORD
+            </button>
+          )}
+        </div>
+
+        <div className="content-card table-card">
+          <div className="card-header">
+            <h2>Medical Record Directory</h2>
+
+            <span className="record-count">
+              {medicalRecords.length} RECORDS
+            </span>
+          </div>
+
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>PATIENT</th>
+                  <th>DOCTOR</th>
+                  <th>NURSE</th>
+                  <th>DIAGNOSIS</th>
+                  <th>PRESCRIPTION</th>
+                  <th>NOTES</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {medicalRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan="7">
+                      <div className="empty-table">
+                        No medical records found.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  medicalRecords.map((record, index) => (
+                    <tr
+                      key={
+                        record.id ||
+                        record.recordId ||
+                        index
+                      }
+                    >
+                      <td>
+                        {record.id ||
+                          record.recordId ||
+                          index + 1}
+                      </td>
+
+                      <td>
+                        {getPatientName(record.patientId)}
+                      </td>
+
+                      <td>
+                        {getDoctorName(record.doctorId)}
+                      </td>
+
+                      <td>
+                        {getNurseName(record.nurseId)}
+                      </td>
+
+                      <td>
+                        {record.diagnosis || "—"}
+                      </td>
+
+                      <td>
+                        {record.prescription || "—"}
+                      </td>
+
+                      <td>
+                        {record.notes || "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* =======================================================
+     SECURITY MODULE
+  ======================================================= */
+
+  const renderSecurityModule = (title, kicker, description, items) => {
+    return (
+      <div className="page-container">
+        <div className="page-heading">
+          <div>
+            <div className="section-kicker">{kicker}</div>
 
             <h1>{title}</h1>
 
             <p>{description}</p>
           </div>
 
-          <div className="module-status">
-            <span></span>
-            MODULE ONLINE
+          <div className="connection-status">
+            <span className="status-dot"></span>
+            MONITORING ONLINE
           </div>
         </div>
 
-        <div className="module-placeholder">
+        <div className="metrics-grid">
+          <MetricCard
+            label="TOTAL ITEMS"
+            value={items.length}
+            subtext="Tracked records"
+          />
 
-          <div className="module-icon">
-            {icon}
+          <MetricCard
+            label="CRITICAL"
+            value={
+              items.filter(
+                (item) =>
+                  String(
+                    item.severity ||
+                      item.priority ||
+                      item.level ||
+                      ""
+                  ).toLowerCase() === "critical"
+              ).length
+            }
+            subtext="Critical findings"
+          />
+
+          <MetricCard
+            label="ACTIVE"
+            value={items.length}
+            subtext="Currently monitored"
+          />
+        </div>
+
+        <div className="content-card table-card">
+          <div className="card-header">
+            <h2>{title} Records</h2>
           </div>
 
-          <div>
-            <span className="module-kicker">
-              SECURITY OPERATIONS MODULE
-            </span>
-
-            <h2>{title}</h2>
-
-            <p>
-              This module is ready for backend integration.
-              Data controls and operational workflows will be
-              connected as the platform expands.
-            </p>
-
-            <div className="module-progress">
-              <span>INTEGRATION STATUS</span>
-
-              <div>
-                <i></i>
-              </div>
-
-              <strong>IN DEVELOPMENT</strong>
+          {items.length === 0 ? (
+            <div className="empty-table">
+              No records currently available.
             </div>
-          </div>
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>NAME / TITLE</th>
+                    <th>SEVERITY</th>
+                    <th>STATUS</th>
+                    <th>DESCRIPTION</th>
+                  </tr>
+                </thead>
 
+                <tbody>
+                  {items.map((item, index) => (
+                    <tr key={item.id || index}>
+                      <td>{item.id || index + 1}</td>
+
+                      <td>
+                        <strong>
+                          {item.title ||
+                            item.name ||
+                            item.vulnerability ||
+                            item.event ||
+                            "Security Record"}
+                        </strong>
+                      </td>
+
+                      <td>
+                        {item.severity ||
+                          item.priority ||
+                          item.level ||
+                          "Normal"}
+                      </td>
+
+                      <td>
+                        {item.status || "Active"}
+                      </td>
+
+                      <td>
+                        {item.description ||
+                          item.details ||
+                          item.message ||
+                          "No description available."}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      </>
+      </div>
     );
   };
 
-  // ==========================================
-  // DOCTOR DASHBOARD
-  // ==========================================
+  /* =======================================================
+     HEALTHCARE DASHBOARD
+  ======================================================= */
+
+  const renderHealthcareDashboard = () => {
+    return (
+      <div className="page-container">
+        <div className="page-heading">
+          <div>
+            <div className="section-kicker">
+              HEALTHCARE OPERATIONS
+            </div>
+
+            <h1>Healthcare Dashboard</h1>
+
+            <p>
+              Hospital management and clinical operations.
+            </p>
+          </div>
+        </div>
+
+        <div className="metrics-grid">
+          <MetricCard
+            label="PATIENTS"
+            value={patients.length}
+            subtext="Registered patients"
+          />
+
+          <MetricCard
+            label="DOCTORS"
+            value={doctors.length}
+            subtext="Medical staff"
+          />
+
+          <MetricCard
+            label="NURSES"
+            value={nurses.length}
+            subtext="Nursing staff"
+          />
+
+          <MetricCard
+            label="MEDICAL RECORDS"
+            value={medicalRecords.length}
+            subtext="Clinical records"
+          />
+        </div>
+
+        <div className="content-card">
+          <HealthcareDashboard />
+        </div>
+      </div>
+    );
+  };
+
+  /* =======================================================
+     DOCTOR PORTAL
+  ======================================================= */
+
+  const renderDoctorPortal = () => {
+    if (activePage === "My Patients") {
+      return renderPatients();
+    }
+
+    if (activePage === "Medical History") {
+      return renderMedicalRecords();
+    }
+
+    if (activePage === "Medications") {
+      return (
+        <div className="page-container">
+          <div className="page-heading">
+            <div>
+              <div className="section-kicker">
+                DOCTOR PORTAL
+              </div>
+              <h1>Medications</h1>
+              <p>Patient medication information.</p>
+            </div>
+          </div>
+
+          <div className="content-card">
+            <div className="empty-table">
+              Medication management is available through
+              medical records.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activePage === "Appointments") {
+      return renderAppointments("Doctor");
+    }
+
+    return renderDoctorDashboard();
+  };
 
   const renderDoctorDashboard = () => {
     return (
-      <>
+      <div className="page-container">
         <div className="page-heading">
-
           <div>
-            <div className="page-kicker">
-              MEDISHIELD AI // CLINICAL OPERATIONS
+            <div className="section-kicker">
+              DOCTOR PORTAL
             </div>
 
             <h1>Doctor Dashboard</h1>
 
             <p>
-              Manage patients, medical records, medications
-              and appointments.
+              Welcome, {currentUser?.name || "Doctor"}.
             </p>
           </div>
-
-          <div className="system-live">
-            <span className="live-dot"></span>
-            CLINICAL PORTAL ACTIVE
-          </div>
-
         </div>
 
-        <div className="dashboard-cards">
+        <div className="metrics-grid">
+          <MetricCard
+            label="MY PATIENTS"
+            value={patients.length}
+            subtext="Patient directory"
+          />
 
-          <div className="security-card score-card">
+          <MetricCard
+            label="MEDICAL RECORDS"
+            value={medicalRecords.length}
+            subtext="Clinical records"
+          />
 
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  MY PATIENTS
-                </span>
-
-                <small>
-                  Patients under your care
-                </small>
-              </div>
-
-              <span className="card-icon">♙</span>
-            </div>
-
-            <div className="metric-value">
-              24
-            </div>
-
-            <div className="metric-footer blue">
-              <span className="metric-status-dot"></span>
-              ACTIVE PATIENTS
-            </div>
-
-          </div>
-
-          <div className="security-card event-card">
-
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  APPOINTMENTS
-                </span>
-
-                <small>
-                  Today's schedule
-                </small>
-              </div>
-
-              <span className="card-icon">◷</span>
-            </div>
-
-            <div className="metric-value">
-              6
-            </div>
-
-            <div className="metric-footer blue">
-              <span className="metric-status-dot"></span>
-              TODAY
-            </div>
-
-          </div>
-
-          <div className="security-card warning-card">
-
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  MEDICAL RECORDS
-                </span>
-
-                <small>
-                  Available records
-                </small>
-              </div>
-
-              <span className="card-icon">▤</span>
-            </div>
-
-            <div className="metric-value">
-              24
-            </div>
-
-            <div className="metric-footer warning">
-              <span className="metric-status-dot"></span>
-              ACCESS CONTROLLED
-            </div>
-
-          </div>
-
+          <MetricCard
+            label="APPOINTMENTS"
+            value="0"
+            subtext="Scheduled"
+          />
         </div>
 
-        <div className="section-heading">
-          <div>
-            <span>DOCTOR SERVICES</span>
-            <small>Clinical management</small>
+        <div className="content-card">
+          <h2>Doctor Operations</h2>
+
+          <div className="protection-grid">
+            <div>✓ View Patients</div>
+            <div>✓ Medical History</div>
+            <div>✓ Medication Information</div>
+            <div>✓ Appointment Management</div>
           </div>
         </div>
-
-        <div className="dashboard-grid">
-
-          <div className="dashboard-panel">
-
-            <div className="panel-header">
-              <div>
-                <span className="panel-label">
-                  PATIENT MANAGEMENT
-                </span>
-
-                <h2>My Patients</h2>
-
-                <p>
-                  View and manage patients assigned to you.
-                </p>
-              </div>
-            </div>
-
-            <button
-              className="primary-action"
-              onClick={() =>
-                setActivePage("My Patients")
-              }
-            >
-              VIEW PATIENTS
-            </button>
-
-          </div>
-
-          <div className="dashboard-panel">
-
-            <div className="panel-header">
-              <div>
-                <span className="panel-label">
-                  APPOINTMENTS
-                </span>
-
-                <h2>Today's Appointments</h2>
-
-                <p>
-                  Review your upcoming consultations.
-                </p>
-              </div>
-            </div>
-
-            <button
-              className="primary-action"
-              onClick={() =>
-                setActivePage("Appointments")
-              }
-            >
-              VIEW APPOINTMENTS
-            </button>
-
-          </div>
-
-        </div>
-      </>
+      </div>
     );
   };
 
-  // ==========================================
-  // NURSE DASHBOARD
-  // ==========================================
+  /* =======================================================
+     NURSE PORTAL
+  ======================================================= */
+
+  const renderNursePortal = () => {
+    if (activePage === "Patients") {
+      return renderPatients();
+    }
+
+    if (activePage === "Today's Appointments") {
+      return renderAppointments("Nurse");
+    }
+
+    if (activePage === "Book Appointment") {
+      return renderAppointments("Nurse", true);
+    }
+
+    return renderNurseDashboard();
+  };
 
   const renderNurseDashboard = () => {
     return (
-      <>
+      <div className="page-container">
         <div className="page-heading">
-
           <div>
-            <div className="page-kicker">
-              MEDISHIELD AI // NURSING OPERATIONS
+            <div className="section-kicker">
+              NURSE PORTAL
             </div>
 
             <h1>Nurse Dashboard</h1>
 
             <p>
-              Manage today's appointments, patients and
-              clinical activities.
+              Welcome, {currentUser?.name || "Nurse"}.
             </p>
           </div>
-
-          <div className="system-live">
-            <span className="live-dot"></span>
-            NURSING PORTAL ACTIVE
-          </div>
-
         </div>
 
-        <div className="dashboard-cards">
+        <div className="metrics-grid">
+          <MetricCard
+            label="PATIENTS"
+            value={patients.length}
+            subtext="Patient directory"
+          />
 
-          <div className="security-card event-card">
+          <MetricCard
+            label="TODAY'S APPOINTMENTS"
+            value="0"
+            subtext="Scheduled"
+          />
 
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  TODAY'S APPOINTMENTS
-                </span>
-
-                <small>
-                  Scheduled consultations
-                </small>
-              </div>
-
-              <span className="card-icon">◷</span>
-            </div>
-
-            <div className="metric-value">
-              8
-            </div>
-
-            <div className="metric-footer blue">
-              <span className="metric-status-dot"></span>
-              TODAY
-            </div>
-
-          </div>
-
-          <div className="security-card score-card">
-
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  PATIENTS
-                </span>
-
-                <small>
-                  Patients requiring attention
-                </small>
-              </div>
-
-              <span className="card-icon">♙</span>
-            </div>
-
-            <div className="metric-value">
-              18
-            </div>
-
-            <div className="metric-footer blue">
-              <span className="metric-status-dot"></span>
-              ACTIVE
-            </div>
-
-          </div>
-
+          <MetricCard
+            label="ACTIVE TASKS"
+            value="0"
+            subtext="Pending tasks"
+          />
         </div>
 
-        <div className="section-heading">
-          <div>
-            <span>NURSE SERVICES</span>
+        <div className="content-card">
+          <h2>Nursing Operations</h2>
 
-            <small>
-              Patient and appointment management
-            </small>
+          <div className="protection-grid">
+            <div>✓ View Patients</div>
+            <div>✓ Today's Appointments</div>
+            <div>✓ Patient Information</div>
+            <div>✓ Book Appointment</div>
           </div>
         </div>
-
-        <div className="dashboard-grid">
-
-          <div className="dashboard-panel">
-
-            <div className="panel-header">
-              <div>
-                <span className="panel-label">
-                  APPOINTMENTS
-                </span>
-
-                <h2>Today's Appointments</h2>
-
-                <p>
-                  View today's scheduled patient
-                  appointments.
-                </p>
-              </div>
-            </div>
-
-            <button
-              className="primary-action"
-              onClick={() =>
-                setActivePage("Today's Appointments")
-              }
-            >
-              VIEW APPOINTMENTS
-            </button>
-
-          </div>
-
-          <div className="dashboard-panel">
-
-            <div className="panel-header">
-              <div>
-                <span className="panel-label">
-                  PATIENT CARE
-                </span>
-
-                <h2>Patients</h2>
-
-                <p>
-                  View patients and their assigned
-                  information.
-                </p>
-              </div>
-            </div>
-
-            <button
-              className="primary-action"
-              onClick={() =>
-                setActivePage("Patients")
-              }
-            >
-              VIEW PATIENTS
-            </button>
-
-          </div>
-
-        </div>
-      </>
+      </div>
     );
   };
 
-  // ==========================================
-  // PATIENT DASHBOARD
-  // ==========================================
+  /* =======================================================
+     PATIENT PORTAL
+  ======================================================= */
+
+  const renderPatientPortal = () => {
+    if (activePage === "My Medical History") {
+      return renderMedicalRecords();
+    }
+
+    if (activePage === "My Medications") {
+      return (
+        <div className="page-container">
+          <div className="page-heading">
+            <div>
+              <div className="section-kicker">
+                PATIENT PORTAL
+              </div>
+
+              <h1>My Medications</h1>
+
+              <p>Your prescribed medication information.</p>
+            </div>
+          </div>
+
+          <div className="content-card">
+            <div className="empty-table">
+              Medication information will appear here
+              when prescribed by a doctor.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activePage === "Appointment History") {
+      return renderAppointments("Patient");
+    }
+
+    if (activePage === "Book Appointment") {
+      return renderAppointments("Patient", true);
+    }
+
+    return renderPatientDashboard();
+  };
 
   const renderPatientDashboard = () => {
     return (
-      <>
+      <div className="page-container">
         <div className="page-heading">
-
           <div>
-            <div className="page-kicker">
-              MEDISHIELD AI // PATIENT PORTAL
+            <div className="section-kicker">
+              PATIENT PORTAL
             </div>
 
-            <h1>
-              Welcome, {currentUser?.name || "Patient"}
-            </h1>
+            <h1>Patient Dashboard</h1>
 
             <p>
-              Access your medical information and manage
-              your healthcare appointments.
+              Welcome, {currentUser?.name || "Patient"}.
             </p>
           </div>
-
-          <div className="system-live">
-            <span className="live-dot"></span>
-            PATIENT PORTAL ACTIVE
-          </div>
-
         </div>
 
-        <div className="dashboard-cards">
+        <div className="metrics-grid">
+          <MetricCard
+            label="MEDICAL HISTORY"
+            value={medicalRecords.length}
+            subtext="Available records"
+          />
 
-          <div className="security-card score-card">
+          <MetricCard
+            label="MEDICATIONS"
+            value="0"
+            subtext="Current prescriptions"
+          />
 
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  MEDICAL HISTORY
-                </span>
-
-                <small>
-                  Your medical records
-                </small>
-              </div>
-
-              <span className="card-icon">▤</span>
-            </div>
-
-            <div className="metric-value">
-              VIEW
-            </div>
-
-            <div className="metric-footer blue">
-              <span className="metric-status-dot"></span>
-              PROTECTED
-            </div>
-
-          </div>
-
-          <div className="security-card warning-card">
-
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  MEDICATIONS
-                </span>
-
-                <small>
-                  Current medications
-                </small>
-              </div>
-
-              <span className="card-icon">✚</span>
-            </div>
-
-            <div className="metric-value">
-              VIEW
-            </div>
-
-            <div className="metric-footer warning">
-              <span className="metric-status-dot"></span>
-              PROTECTED
-            </div>
-
-          </div>
-
-          <div className="security-card event-card">
-
-            <div className="card-top">
-              <div>
-                <span className="card-label">
-                  APPOINTMENTS
-                </span>
-
-                <small>
-                  Your appointment history
-                </small>
-              </div>
-
-              <span className="card-icon">◷</span>
-            </div>
-
-            <div className="metric-value">
-              VIEW
-            </div>
-
-            <div className="metric-footer blue">
-              <span className="metric-status-dot"></span>
-              MANAGE
-            </div>
-
-          </div>
-
+          <MetricCard
+            label="APPOINTMENTS"
+            value="0"
+            subtext="Scheduled"
+          />
         </div>
 
-        <div className="section-heading">
-          <div>
-            <span>PATIENT SERVICES</span>
-            <small>Healthcare access</small>
+        <div className="content-card">
+          <h2>Patient Services</h2>
+
+          <div className="protection-grid">
+            <div>✓ Medical History</div>
+            <div>✓ Medications</div>
+            <div>✓ Appointment History</div>
+            <div>✓ Book Appointment</div>
           </div>
         </div>
-
-        <div className="dashboard-grid">
-
-          <div className="dashboard-panel">
-
-            <div className="panel-header">
-              <div>
-                <span className="panel-label">
-                  MEDICAL RECORDS
-                </span>
-
-                <h2>My Medical History</h2>
-
-                <p>
-                  View your medical history and clinical
-                  records.
-                </p>
-              </div>
-            </div>
-
-            <button
-              className="primary-action"
-              onClick={() =>
-                setActivePage("My Medical History")
-              }
-            >
-              VIEW HISTORY
-            </button>
-
-          </div>
-
-          <div className="dashboard-panel">
-
-            <div className="panel-header">
-              <div>
-                <span className="panel-label">
-                  APPOINTMENT
-                </span>
-
-                <h2>Book Appointment</h2>
-
-                <p>
-                  Schedule a new healthcare appointment.
-                </p>
-              </div>
-            </div>
-
-            <button
-              className="primary-action"
-              onClick={() =>
-                setActivePage("Book Appointment")
-              }
-            >
-              BOOK APPOINTMENT
-            </button>
-
-          </div>
-
-        </div>
-      </>
+      </div>
     );
   };
 
-  // ==========================================
-  // ROUTER
-  // ==========================================
+  /* =======================================================
+     APPOINTMENTS
+  ======================================================= */
 
-  const renderPage = () => {
+  const renderAppointments = (role, booking = false) => {
+    return (
+      <div className="page-container">
+        <div className="page-heading">
+          <div>
+            <div className="section-kicker">
+              {role.toUpperCase()} PORTAL
+            </div>
 
-    // ==========================================
-    // SECURITY USERS
-    // ==========================================
+            <h1>
+              {booking
+                ? "Book Appointment"
+                : "Appointments"}
+            </h1>
 
+            <p>
+              Appointment management module.
+            </p>
+          </div>
+        </div>
+
+        {booking ? (
+          <div className="content-card">
+            <h2>Create Appointment</h2>
+
+            <form
+              className="app-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                alert(
+                  "Appointment booking module is ready for backend appointment endpoint integration."
+                );
+              }}
+            >
+              <select required defaultValue="">
+                <option value="" disabled>
+                  Select Doctor
+                </option>
+
+                {doctors.map((doctor) => (
+                  <option
+                    key={doctor.doctorId}
+                    value={doctor.doctorId}
+                  >
+                    {doctor.name} —{" "}
+                    {doctor.specialization}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="date"
+                required
+              />
+
+              <input
+                type="time"
+                required
+              />
+
+              <textarea
+                placeholder="Reason for appointment"
+                rows="4"
+                required
+              />
+
+              <button
+                type="submit"
+                className="primary-action"
+              >
+                BOOK APPOINTMENT
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div className="content-card">
+            <div className="empty-table">
+              No appointments currently available.
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* =======================================================
+     ACTIVE PAGE RENDERER
+  ======================================================= */
+
+  const renderActivePage = () => {
     if (isSecurityUser) {
       switch (activePage) {
-
         case "Dashboard":
-          return renderDashboard();
+          return renderSecurityDashboard();
 
         case "Users":
           return renderUsers();
 
-        case "Vulnerabilities":
-          return renderModule(
-            "Vulnerability Management",
-            "Identify, prioritize and monitor security weaknesses across healthcare infrastructure.",
-            "⚠"
-          );
+        case "Patients":
+          return renderPatients();
 
-        case "Threat Intelligence":
-          return renderModule(
-            "Threat Intelligence",
-            "Monitor indicators of compromise, malicious activity and emerging healthcare cyber threats.",
-            "◈"
+        case "Doctors":
+          return renderDoctors();
+
+        case "Nurses":
+          return renderNurses();
+
+        case "Medical Records":
+          return renderMedicalRecords();
+
+        case "Healthcare Dashboard":
+          return renderHealthcareDashboard();
+
+        case "Vulnerabilities":
+          return renderSecurityModule(
+            "Vulnerabilities",
+            "APPLICATION SECURITY",
+            "Track vulnerabilities affecting healthcare infrastructure.",
+            vulnerabilities
           );
 
         case "Security Events":
-          return renderModule(
+          return renderSecurityModule(
             "Security Events",
-            "Monitor and investigate security events generated across the healthcare environment.",
-            "◉"
+            "THREAT MONITORING",
+            "Monitor security events generated by the platform.",
+            securityEvents
+          );
+
+        case "Threat Intelligence":
+          return renderSecurityModule(
+            "Threat Intelligence",
+            "THREAT INTELLIGENCE",
+            "Monitor indicators and threat intelligence data.",
+            []
           );
 
         case "Audit Logs":
-          return renderModule(
+          return renderSecurityModule(
             "Audit Logs",
-            "Track administrative actions and security activity for compliance and investigation.",
-            "▤"
+            "COMPLIANCE",
+            "Track administrative and security activity.",
+            []
           );
 
         default:
-          return renderDashboard();
+          return renderSecurityDashboard();
       }
     }
-
-    // ==========================================
-    // DOCTOR
-    // ==========================================
 
     if (isDoctor) {
-      switch (activePage) {
-
-        case "Dashboard":
-          return renderDoctorDashboard();
-
-        case "My Patients":
-          return renderModule(
-            "My Patients",
-            "View and manage patients assigned to your care.",
-            "♙"
-          );
-
-        case "Medical History":
-          return renderModule(
-            "Medical History",
-            "Review patient medical history and clinical records.",
-            "▤"
-          );
-
-        case "Medications":
-          return renderModule(
-            "Medications",
-            "Review and manage patient medications.",
-            "✚"
-          );
-
-        case "Appointments":
-          return renderModule(
-            "Appointments",
-            "View and manage your scheduled patient appointments.",
-            "◷"
-          );
-
-        default:
-          return renderDoctorDashboard();
-      }
+      return renderDoctorPortal();
     }
-
-    // ==========================================
-    // NURSE
-    // ==========================================
 
     if (isNurse) {
-      switch (activePage) {
-
-        case "Dashboard":
-          return renderNurseDashboard();
-
-        case "Today's Appointments":
-          return renderModule(
-            "Today's Appointments",
-            "View today's scheduled patient appointments.",
-            "◷"
-          );
-
-        case "Patients":
-          return renderModule(
-            "Patients",
-            "View patients assigned to your nursing operations.",
-            "♙"
-          );
-
-        case "Book Appointment":
-          return renderModule(
-            "Book Appointment",
-            "Create and manage patient appointments.",
-            "＋"
-          );
-
-        default:
-          return renderNurseDashboard();
-      }
+      return renderNursePortal();
     }
-
-    // ==========================================
-    // PATIENT
-    // ==========================================
 
     if (isPatient) {
-      switch (activePage) {
-
-        case "Dashboard":
-          return renderPatientDashboard();
-
-        case "My Medical History":
-          return renderModule(
-            "My Medical History",
-            "View your medical history and clinical records.",
-            "▤"
-          );
-
-        case "My Medications":
-          return renderModule(
-            "My Medications",
-            "View your current medications.",
-            "✚"
-          );
-
-        case "Appointment History":
-          return renderModule(
-            "Appointment History",
-            "View your previous and upcoming appointments.",
-            "◷"
-          );
-
-        case "Book Appointment":
-          return renderModule(
-            "Book Appointment",
-            "Schedule a new healthcare appointment.",
-            "＋"
-          );
-
-        default:
-          return renderPatientDashboard();
-      }
+      return renderPatientPortal();
     }
 
-    // ==========================================
-    // UNKNOWN ROLE
-    // ==========================================
-
-    return renderModule(
-      "Access Restricted",
-      "Your account does not currently have a supported MediShield role.",
-      "⚠"
-    );
+    return renderSecurityDashboard();
   };
 
-  // ==========================================
-  // APPLICATION
-  // ==========================================
+  /* =======================================================
+     AUTH SCREEN
+  ======================================================= */
+
+  if (!authenticated) {
+    return (
+      <Login
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
+  /* =======================================================
+     MAIN UI
+  ======================================================= */
 
   return (
-    <div className="app-shell">
-
-      {/* SIDEBAR */}
+    <div
+      className={`app-shell ${
+        sidebarOpen ? "sidebar-visible" : "sidebar-hidden"
+      }`}
+    >
+      {/* ===================================================
+          SIDEBAR
+      =================================================== */}
 
       <aside className="sidebar">
+        <div className="sidebar-brand">
+          <MediShieldLogo />
 
-        <div className="sidebar-top">
-
-          <div className="sidebar-brand">
-            <MediShieldLogo compact />
+          <div className="brand-text">
+            <strong>MEDISHIELD AI</strong>
+            <span>SECURITY OPERATIONS</span>
           </div>
-
-          <div className="sidebar-system">
-            <span className="system-dot"></span>
-
-            <div>
-              <strong>
-                {isSecurityUser
-                  ? "SECURITY OPERATIONS"
-                  : isDoctor
-                    ? "DOCTOR PORTAL"
-                    : isNurse
-                      ? "NURSING OPERATIONS"
-                      : isPatient
-                        ? "PATIENT PORTAL"
-                        : "MEDISHIELD AI"}
-              </strong>
-
-              <small>
-                {isSecurityUser
-                  ? "HEALTHCARE SOC"
-                  : isDoctor
-                    ? "CLINICAL SERVICES"
-                    : isNurse
-                      ? "PATIENT CARE"
-                      : isPatient
-                        ? "HEALTHCARE SERVICES"
-                        : "SECURE PORTAL"}
-              </small>
-            </div>
-          </div>
-
-          <nav className="sidebar-nav">
-
-            <div className="nav-section-title">
-              COMMAND CENTER
-            </div>
-
-            {menuItems.map((item) => (
-              <button
-                key={item.name}
-                className={`nav-item ${
-                  activePage === item.name
-                    ? "active"
-                    : ""
-                }`}
-                onClick={() =>
-                  setActivePage(item.name)
-                }
-              >
-                <span className="nav-icon">
-                  {item.icon}
-                </span>
-
-                <span className="nav-label">
-                  {item.name}
-                </span>
-
-                {item.count !== undefined &&
-                  item.count > 0 && (
-                    <span className="nav-count">
-                      {item.count}
-                    </span>
-                  )}
-
-                {activePage === item.name && (
-                  <span className="nav-active-line"></span>
-                )}
-              </button>
-            ))}
-
-          </nav>
         </div>
 
-        <div className="sidebar-bottom">
+        <div className="sidebar-user">
+          <div className="user-avatar">
+            {(currentUser?.name || "U")
+              .charAt(0)
+              .toUpperCase()}
+          </div>
 
-          <div className="security-status">
+          <div>
+            <strong>
+              {currentUser?.name || "User"}
+            </strong>
 
-            <span className="status-pulse"></span>
+            <span>
+              {currentUser?.role || "User"}
+            </span>
+          </div>
+        </div>
 
-            <div>
-              <strong>SECURITY ACTIVE</strong>
+        <nav className="sidebar-nav">
+          {menuItems.map((item) => (
+            <button
+              type="button"
+              key={item}
+              className={
+                activePage === item
+                  ? "nav-item active"
+                  : "nav-item"
+              }
+              onClick={() => {
+                setActivePage(item);
+                setSidebarOpen(true);
+              }}
+            >
+              <span className="nav-icon">
+                {getNavIcon(item)}
+              </span>
 
-              <small>
-                Environment monitored
-              </small>
-            </div>
+              <span>{item}</span>
+            </button>
+          ))}
+        </nav>
 
+        <div className="sidebar-footer">
+          <div className="secure-indicator">
+            <span className="status-dot"></span>
+            SECURE CONNECTION
           </div>
 
           <button
+            type="button"
             className="logout-button"
             onClick={handleLogout}
           >
-            <span>↪</span>
             LOGOUT
           </button>
-
         </div>
-
       </aside>
 
-      {/* MAIN */}
+      {/* ===================================================
+          MAIN CONTENT
+      =================================================== */}
 
       <main className="main-content">
-
         <header className="topbar">
+          <button
+            type="button"
+            className="menu-toggle"
+            onClick={() =>
+              setSidebarOpen((value) => !value)
+            }
+          >
+            ☰
+          </button>
 
-          <div className="breadcrumb">
-            <span>MEDISHIELD</span>
-
-            <b>/</b>
-
-            <strong>
-              {activePage.toUpperCase()}
-            </strong>
+          <div className="topbar-title">
+            <span>MEDISHIELD AI</span>
+            <strong>{activePage}</strong>
           </div>
 
           <div className="topbar-right">
-
-            <div className="connection-status">
-              <span></span>
+            <div className="api-status">
+              <span className="status-dot"></span>
               API CONNECTED
             </div>
 
-            <div className="topbar-divider"></div>
+            <div className="profile">
+              <strong>
+                {currentUser?.name || "User"}
+              </strong>
 
-            <div className="admin-profile">
-
-              <div className="admin-avatar">
-
-                {(currentUser?.name || "User")
-                  .split(" ")
-                  .map((part) =>
-                    part.charAt(0)
-                  )
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase()}
-
-              </div>
-
-              <div>
-
-                <strong>
-                  {currentUser?.name || "User"}
-                </strong>
-
-                <small>
-                  {currentUser?.role || "Unknown Role"}
-                </small>
-
-              </div>
-
+              <span>
+                {currentUser?.role || "User"}
+              </span>
             </div>
-
           </div>
-
         </header>
 
-        <section className="content-area">
-          {renderPage()}
-        </section>
-
+        <div className="content-area">
+          {renderActivePage()}
+        </div>
       </main>
 
-      {/* USER MODAL */}
+      {/* ===================================================
+          USER MODAL
+      =================================================== */}
 
       {showAddUser && (
-        <div
-          className="modal-overlay"
-          onClick={() => {
-            resetUserForm();
+        <Modal
+          title={
+            editingUserId
+              ? "Edit User"
+              : "Add User"
+          }
+          kicker="ACCESS CONTROL"
+          onClose={() => {
             setShowAddUser(false);
+            resetUserForm();
           }}
         >
-
-          <div
-            className="user-modal"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+          <form
+            className="app-form"
+            onSubmit={handleSaveUser}
           >
+            <label>
+              Name
+            </label>
 
-            <div className="modal-header">
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={newUser.name}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  name: e.target.value,
+                })
+              }
+              required
+            />
 
-              <div>
-                <span className="panel-label">
-                  ACCESS CONTROL
-                </span>
+            <label>
+              Email
+            </label>
 
-                <h2>
-                  {editingUserId
-                    ? "Edit Security User"
-                    : "Create Security User"}
-                </h2>
+            <input
+              type="email"
+              placeholder="user@medishield.com"
+              value={newUser.email}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  email: e.target.value,
+                })
+              }
+              required
+            />
 
-                <p>
-                  {editingUserId
-                    ? "Update authorized personnel details."
-                    : "Register an authorized MediShield security user."}
-                </p>
-              </div>
+            <label>
+              Password
+            </label>
 
-              <button
-                className="modal-close"
-                onClick={() => {
-                  resetUserForm();
-                  setShowAddUser(false);
-                }}
-              >
-                ×
-              </button>
+            <input
+              type="password"
+              placeholder={
+                editingUserId
+                  ? "New password (optional)"
+                  : "Password"
+              }
+              value={newUser.password}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  password: e.target.value,
+                })
+              }
+              required={!editingUserId}
+              minLength="6"
+              autoComplete="new-password"
+            />
 
-            </div>
+            <label>
+              Role
+            </label>
+
+            <select
+              value={newUser.role}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  role: e.target.value,
+                })
+              }
+            >
+              <option>Security Admin</option>
+              <option>SOC Analyst</option>
+              <option>Security Analyst</option>
+              <option>Forensic Analyst</option>
+              <option>Administrator</option>
+              <option>Doctor</option>
+              <option>Nurse</option>
+              <option>Patient</option>
+            </select>
+
+            <label>
+              Department
+            </label>
+
+            <input
+              type="text"
+              placeholder="Department"
+              value={newUser.department}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  department: e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>
+              Status
+            </label>
+
+            <select
+              value={newUser.status}
+              onChange={(e) =>
+                setNewUser({
+                  ...newUser,
+                  status: e.target.value,
+                })
+              }
+            >
+              <option>Active</option>
+              <option>Disabled</option>
+            </select>
 
             {userError && (
-              <div className="modal-error">
-                <strong>OPERATION FAILED</strong>
-
-                <span>{userError}</span>
+              <div className="inline-error">
+                {userError}
               </div>
             )}
 
-            <form
-              onSubmit={
-                editingUserId
-                  ? handleUpdateUser
-                  : handleAddUser
-              }
-            >
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => {
+                  setShowAddUser(false);
+                  resetUserForm();
+                }}
+              >
+                CANCEL
+              </button>
 
-              <div className="modal-form-grid">
-
-                <div className="modal-field">
-
-                  <label>FULL NAME</label>
-
-                  <input
-                    type="text"
-                    placeholder="Enter full name"
-                    value={newUser.name}
-                    onChange={(e) =>
-                      setNewUser({
-                        ...newUser,
-                        name: e.target.value,
-                      })
-                    }
-                    required
-                  />
-
-                </div>
-
-                <div className="modal-field">
-
-                  <label>EMAIL ADDRESS</label>
-
-                  <input
-                    type="email"
-                    placeholder="user@hospital.com"
-                    value={newUser.email}
-                    onChange={(e) =>
-                      setNewUser({
-                        ...newUser,
-                        email: e.target.value,
-                      })
-                    }
-                    required
-                  />
-
-                </div>
-
-                <div className="modal-field">
-
-                  <label>SECURITY ROLE</label>
-
-                  <select
-                    value={newUser.role}
-                    onChange={(e) =>
-                      setNewUser({
-                        ...newUser,
-                        role: e.target.value,
-                      })
-                    }
-                  >
-                    <option>SOC Analyst</option>
-                    <option>Security Analyst</option>
-                    <option>Forensic Analyst</option>
-                    <option>Hospital Staff</option>
-                    <option>Administrator</option>
-                    <option>Security Admin</option>
-                    <option>Doctor</option>
-                    <option>Nurse</option>
-                    <option>Patient</option>
-                  </select>
-
-                </div>
-
-                <div className="modal-field">
-
-                  <label>DEPARTMENT</label>
-
-                  <input
-                    type="text"
-                    placeholder="Security Operations"
-                    value={newUser.department}
-                    onChange={(e) =>
-                      setNewUser({
-                        ...newUser,
-                        department: e.target.value,
-                      })
-                    }
-                    required
-                  />
-
-                </div>
-
-                <div className="modal-field">
-
-                  <label>ACCOUNT STATUS</label>
-
-                  <select
-                    value={newUser.status}
-                    onChange={(e) =>
-                      setNewUser({
-                        ...newUser,
-                        status: e.target.value,
-                      })
-                    }
-                  >
-                    <option>Active</option>
-                    <option>Disabled</option>
-                  </select>
-
-                </div>
-
-              </div>
-
-              <div className="modal-security-note">
-
-                <span>◆</span>
-
-                <div>
-                  <strong>SECURITY CONTROL</strong>
-
-                  <p>
-                    User access changes are synchronized
-                    with the MediShield PostgreSQL database.
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="modal-actions">
-
-                <button
-                  type="button"
-                  className="cancel-button"
-                  onClick={() => {
-                    resetUserForm();
-                    setShowAddUser(false);
-                  }}
-                >
-                  CANCEL
-                </button>
-
-                <button
-                  type="submit"
-                  className="primary-action"
-                >
-                  {editingUserId
-                    ? "UPDATE USER"
-                    : "CREATE USER"}
-                </button>
-
-              </div>
-
-            </form>
-
-          </div>
-
-        </div>
+              <button
+                type="submit"
+                className="primary-action"
+              >
+                {editingUserId
+                  ? "UPDATE USER"
+                  : "SAVE USER"}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
+      {/* ===================================================
+          PATIENT MODAL
+      =================================================== */}
+
+      {showPatientModal && (
+        <Modal
+          title={
+            editingPatient
+              ? "Edit Patient"
+              : "Add Patient"
+          }
+          kicker="PATIENT MANAGEMENT"
+          onClose={() => {
+            setShowPatientModal(false);
+            resetPatientForm();
+          }}
+        >
+          <form
+            className="app-form"
+            onSubmit={savePatient}
+          >
+            <label>Name</label>
+
+            <input
+              type="text"
+              value={patientForm.name}
+              onChange={(e) =>
+                setPatientForm({
+                  ...patientForm,
+                  name: e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>Age</label>
+
+            <input
+              type="number"
+              min="0"
+              max="120"
+              value={patientForm.age}
+              onChange={(e) =>
+                setPatientForm({
+                  ...patientForm,
+                  age: e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>Gender</label>
+
+            <select
+              value={patientForm.gender}
+              onChange={(e) =>
+                setPatientForm({
+                  ...patientForm,
+                  gender: e.target.value,
+                })
+              }
+            >
+              <option>Male</option>
+              <option>Female</option>
+              <option>Other</option>
+            </select>
+
+            <label>Blood Group</label>
+
+            <input
+              type="text"
+              placeholder="O+"
+              value={patientForm.bloodGroup}
+              onChange={(e) =>
+                setPatientForm({
+                  ...patientForm,
+                  bloodGroup: e.target.value,
+                })
+              }
+            />
+
+            <label>Phone</label>
+
+            <input
+              type="text"
+              value={patientForm.phone}
+              onChange={(e) =>
+                setPatientForm({
+                  ...patientForm,
+                  phone: e.target.value,
+                })
+              }
+            />
+
+            <label>Email</label>
+
+            <input
+              type="email"
+              value={patientForm.email}
+              onChange={(e) =>
+                setPatientForm({
+                  ...patientForm,
+                  email: e.target.value,
+                })
+              }
+            />
+
+            <label>Address</label>
+
+            <textarea
+              rows="3"
+              value={patientForm.address}
+              onChange={(e) =>
+                setPatientForm({
+                  ...patientForm,
+                  address: e.target.value,
+                })
+              }
+            />
+
+            {patientError && (
+              <div className="inline-error">
+                {patientError}
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => {
+                  setShowPatientModal(false);
+                  resetPatientForm();
+                }}
+              >
+                CANCEL
+              </button>
+
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={patientSaving}
+              >
+                {patientSaving
+                  ? "SAVING..."
+                  : editingPatient
+                  ? "UPDATE PATIENT"
+                  : "SAVE PATIENT"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ===================================================
+          DOCTOR MODAL
+      =================================================== */}
+
+      {showDoctorModal && (
+        <Modal
+          title={
+            editingDoctor
+              ? "Edit Doctor"
+              : "Add Doctor"
+          }
+          kicker="DOCTOR MANAGEMENT"
+          onClose={() => {
+            setShowDoctorModal(false);
+            resetDoctorForm();
+          }}
+        >
+          <form
+            className="app-form"
+            onSubmit={saveDoctor}
+          >
+            <label>Name</label>
+
+            <input
+              type="text"
+              value={doctorForm.name}
+              onChange={(e) =>
+                setDoctorForm({
+                  ...doctorForm,
+                  name: e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>Specialization</label>
+
+            <input
+              type="text"
+              placeholder="Cardiology"
+              value={doctorForm.specialization}
+              onChange={(e) =>
+                setDoctorForm({
+                  ...doctorForm,
+                  specialization:
+                    e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>Phone</label>
+
+            <input
+              type="text"
+              value={doctorForm.phone}
+              onChange={(e) =>
+                setDoctorForm({
+                  ...doctorForm,
+                  phone: e.target.value,
+                })
+              }
+            />
+
+            <label>Email</label>
+
+            <input
+              type="email"
+              value={doctorForm.email}
+              onChange={(e) =>
+                setDoctorForm({
+                  ...doctorForm,
+                  email: e.target.value,
+                })
+              }
+            />
+
+            {doctorError && (
+              <div className="inline-error">
+                {doctorError}
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => {
+                  setShowDoctorModal(false);
+                  resetDoctorForm();
+                }}
+              >
+                CANCEL
+              </button>
+
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={doctorSaving}
+              >
+                {doctorSaving
+                  ? "SAVING..."
+                  : editingDoctor
+                  ? "UPDATE DOCTOR"
+                  : "SAVE DOCTOR"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ===================================================
+          NURSE MODAL
+      =================================================== */}
+
+      {showNurseModal && (
+        <Modal
+          title={
+            editingNurse
+              ? "Edit Nurse"
+              : "Add Nurse"
+          }
+          kicker="NURSE MANAGEMENT"
+          onClose={() => {
+            setShowNurseModal(false);
+            resetNurseForm();
+          }}
+        >
+          <form
+            className="app-form"
+            onSubmit={saveNurse}
+          >
+            <label>Name</label>
+
+            <input
+              type="text"
+              value={nurseForm.name}
+              onChange={(e) =>
+                setNurseForm({
+                  ...nurseForm,
+                  name: e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>Department</label>
+
+            <input
+              type="text"
+              placeholder="General Ward"
+              value={nurseForm.department}
+              onChange={(e) =>
+                setNurseForm({
+                  ...nurseForm,
+                  department: e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>Phone</label>
+
+            <input
+              type="text"
+              value={nurseForm.phone}
+              onChange={(e) =>
+                setNurseForm({
+                  ...nurseForm,
+                  phone: e.target.value,
+                })
+              }
+            />
+
+            <label>Email</label>
+
+            <input
+              type="email"
+              value={nurseForm.email}
+              onChange={(e) =>
+                setNurseForm({
+                  ...nurseForm,
+                  email: e.target.value,
+                })
+              }
+            />
+
+            {nurseError && (
+              <div className="inline-error">
+                {nurseError}
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => {
+                  setShowNurseModal(false);
+                  resetNurseForm();
+                }}
+              >
+                CANCEL
+              </button>
+
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={nurseSaving}
+              >
+                {nurseSaving
+                  ? "SAVING..."
+                  : editingNurse
+                  ? "UPDATE NURSE"
+                  : "SAVE NURSE"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* ===================================================
+          MEDICAL RECORD MODAL
+      =================================================== */}
+
+      {showRecordModal && (
+        <Modal
+          title="Add Medical Record"
+          kicker="CLINICAL DATA"
+          onClose={() => {
+            setShowRecordModal(false);
+            resetRecordForm();
+          }}
+        >
+          <form
+            className="app-form"
+            onSubmit={saveMedicalRecord}
+          >
+            <label>Patient</label>
+
+            <select
+              value={recordForm.patientId}
+              onChange={(e) =>
+                setRecordForm({
+                  ...recordForm,
+                  patientId: e.target.value,
+                })
+              }
+              required
+            >
+              <option value="">
+                Select Patient
+              </option>
+
+              {patients.map((patient) => (
+                <option
+                  key={patient.patientId}
+                  value={patient.patientId}
+                >
+                  {patient.name} — #{patient.patientId}
+                </option>
+              ))}
+            </select>
+
+            <label>Doctor</label>
+
+            <select
+              value={recordForm.doctorId}
+              onChange={(e) =>
+                setRecordForm({
+                  ...recordForm,
+                  doctorId: e.target.value,
+                })
+              }
+              required
+            >
+              <option value="">
+                Select Doctor
+              </option>
+
+              {doctors.map((doctor) => (
+                <option
+                  key={doctor.doctorId}
+                  value={doctor.doctorId}
+                >
+                  {doctor.name}
+                </option>
+              ))}
+            </select>
+
+            <label>Nurse</label>
+
+            <select
+              value={recordForm.nurseId}
+              onChange={(e) =>
+                setRecordForm({
+                  ...recordForm,
+                  nurseId: e.target.value,
+                })
+              }
+              required
+            >
+              <option value="">
+                Select Nurse
+              </option>
+
+              {nurses.map((nurse) => (
+                <option
+                  key={nurse.nurseId}
+                  value={nurse.nurseId}
+                >
+                  {nurse.name}
+                </option>
+              ))}
+            </select>
+
+            <label>Diagnosis</label>
+
+            <input
+              type="text"
+              value={recordForm.diagnosis}
+              onChange={(e) =>
+                setRecordForm({
+                  ...recordForm,
+                  diagnosis: e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>Prescription</label>
+
+            <textarea
+              rows="3"
+              value={recordForm.prescription}
+              onChange={(e) =>
+                setRecordForm({
+                  ...recordForm,
+                  prescription: e.target.value,
+                })
+              }
+              required
+            />
+
+            <label>Notes</label>
+
+            <textarea
+              rows="3"
+              value={recordForm.notes}
+              onChange={(e) =>
+                setRecordForm({
+                  ...recordForm,
+                  notes: e.target.value,
+                })
+              }
+            />
+
+            {recordError && (
+              <div className="inline-error">
+                {recordError}
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => {
+                  setShowRecordModal(false);
+                  resetRecordForm();
+                }}
+              >
+                CANCEL
+              </button>
+
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={recordSaving}
+              >
+                {recordSaving
+                  ? "SAVING..."
+                  : "SAVE RECORD"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
+}
+
+/* =========================================================
+   NAVIGATION ICONS
+========================================================= */
+
+function getNavIcon(item) {
+  const icons = {
+    Dashboard: "⌂",
+    Vulnerabilities: "⚠",
+    "Threat Intelligence": "◈",
+    "Security Events": "◉",
+    Users: "♙",
+    "Audit Logs": "▤",
+    "Healthcare Dashboard": "✚",
+    Patients: "♙",
+    Doctors: "⚕",
+    Nurses: "✚",
+    "Medical Records": "▣",
+    "My Patients": "♙",
+    "Medical History": "▤",
+    Medications: "▥",
+    Appointments: "◷",
+    "Today's Appointments": "◷",
+    "Book Appointment": "+",
+    "My Medical History": "▤",
+    "My Medications": "▥",
+    "Appointment History": "◷",
+  };
+
+  return icons[item] || "•";
 }
 
 export default App;

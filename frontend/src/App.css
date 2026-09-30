@@ -2739,3 +2739,707 @@ select:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+/* =========================================================
+   MEDISHIELD AI
+   HOSPITAL MANAGEMENT STYLING
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   HOSPITAL NAVIGATION SECTION
+   --------------------------------------------------------- */
+
+.healthcare-nav-title {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.healthcare-nav-title::before {
+  content: "✚";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 7px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* ---------------------------------------------------------
+   HEALTHCARE DASHBOARD
+   --------------------------------------------------------- */
+
+.healthcare-dashboard {
+  width: 100%;
+  animation: healthcareFadeIn 0.35s ease;
+}
+
+@keyframes healthcareFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.healthcare-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.healthcare-header h1 {
+  margin: 4px 0 8px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.healthcare-header p {
+  margin: 0;
+  max-width: 720px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.section-label {
+  margin: 0;
+  color: #63d7ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+}
+
+/* ---------------------------------------------------------
+   HEALTHCARE API STATUS
+   --------------------------------------------------------- */
+
+.healthcare-status {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border: 1px solid rgba(76, 220, 155, 0.18);
+  border-radius: 8px;
+  background: rgba(76, 220, 155, 0.055);
+  color: #79e7b1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #55e39b;
+  box-shadow: 0 0 10px rgba(85, 227, 155, 0.7);
+  animation: healthcarePulse 1.8s infinite;
+}
+
+@keyframes healthcarePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+/* ---------------------------------------------------------
+   HEALTHCARE STAT CARDS
+   --------------------------------------------------------- */
+
+.healthcare-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.healthcare-stat-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-height: 108px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.055),
+      rgba(255, 255, 255, 0.018)
+    );
+  box-shadow:
+    0 15px 35px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.healthcare-stat-card::after {
+  content: "";
+  position: absolute;
+  right: -35px;
+  bottom: -35px;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(82, 209, 255, 0.045);
+  filter: blur(4px);
+}
+
+.healthcare-stat-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(82, 209, 255, 0.22);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.25),
+    0 0 25px rgba(82, 209, 255, 0.045);
+}
+
+.stat-icon {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgba(82, 209, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(82, 209, 255, 0.07);
+  color: #66d9ff;
+  font-size: 21px;
+}
+
+.healthcare-stat-card:nth-child(2) .stat-icon {
+  border-color: rgba(142, 132, 255, 0.18);
+  background: rgba(142, 132, 255, 0.07);
+  color: #a69eff;
+}
+
+.healthcare-stat-card:nth-child(3) .stat-icon {
+  border-color: rgba(78, 224, 164, 0.18);
+  background: rgba(78, 224, 164, 0.07);
+  color: #6be8ae;
+}
+
+.healthcare-stat-card:nth-child(4) .stat-icon {
+  border-color: rgba(255, 193, 87, 0.18);
+  background: rgba(255, 193, 87, 0.07);
+  color: #ffd078;
+}
+
+.healthcare-stat-card > div {
+  position: relative;
+  z-index: 1;
+}
+
+.stat-label {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+}
+
+.healthcare-stat-card strong {
+  display: block;
+  color: #f4f8fb;
+  font-size: 27px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------
+   HEALTHCARE PANELS
+   --------------------------------------------------------- */
+
+.healthcare-info-grid {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 18px;
+}
+
+.healthcare-panel {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.045),
+      rgba(255, 255, 255, 0.015)
+    );
+  box-shadow:
+    0 15px 35px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 18px;
+}
+
+.panel-heading h2 {
+  margin: 0;
+  color: #f2f6f8;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.panel-heading > span {
+  padding: 5px 8px;
+  border: 1px solid rgba(80, 222, 158, 0.16);
+  border-radius: 5px;
+  background: rgba(80, 222, 158, 0.05);
+  color: #72e7ae;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* ---------------------------------------------------------
+   HEALTHCARE MODULE LIST
+   --------------------------------------------------------- */
+
+.module-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.module-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.12);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.module-item:hover {
+  border-color: rgba(82, 209, 255, 0.15);
+  background: rgba(82, 209, 255, 0.035);
+}
+
+.module-item strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #eaf1f5;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.module-item p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 10px;
+}
+
+.module-item > span {
+  flex-shrink: 0;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: rgba(78, 224, 164, 0.07);
+  color: #6ee4ac;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+/* ---------------------------------------------------------
+   INTEGRATION STATUS
+   --------------------------------------------------------- */
+
+.integration-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.integration-item:first-of-type {
+  padding-top: 4px;
+}
+
+.integration-item:last-child {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+.integration-item span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+}
+
+.integration-item strong {
+  color: #69e3aa;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+/* ---------------------------------------------------------
+   HEALTHCARE NAV COUNT
+   --------------------------------------------------------- */
+
+.nav-item .nav-count {
+  min-width: 22px;
+  padding: 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------
+   HEALTHCARE TABLE SUPPORT
+   --------------------------------------------------------- */
+
+.users-table td small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 9px;
+}
+
+.users-table td > div > strong {
+  display: block;
+}
+
+/* ---------------------------------------------------------
+   HEALTHCARE API ALERT
+   --------------------------------------------------------- */
+
+.api-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 13px 15px;
+  border: 1px solid rgba(255, 180, 80, 0.18);
+  border-radius: 9px;
+  background: rgba(255, 180, 80, 0.08);
+}
+
+/* ============================================================
+   CLINICAL OPERATIONS STUDIO — REDESIGN LAYER
+   This layer turns the existing hospital workflows into a calm,
+   high-context workspace rather than a conventional HMS dashboard.
+   ============================================================ */
+
+:root {
+  --bg: #121720;
+  --bg-deep: #0d1118;
+  --panel: rgba(29, 37, 50, 0.84);
+  --panel-2: #202a39;
+  --panel-hover: #283549;
+  --line: rgba(200, 216, 234, 0.13);
+  --line-light: rgba(200, 216, 234, 0.23);
+  --text: #f5f7fb;
+  --text-soft: #c9d2df;
+  --text-muted: #95a3b5;
+  --cyan: #96e2d5;
+  --cyan-soft: rgba(150, 226, 213, 0.13);
+  --green: #a8db91;
+  --green-soft: rgba(168, 219, 145, 0.13);
+  --red: #f19a9a;
+  --red-soft: rgba(241, 154, 154, 0.13);
+  --yellow: #f0cf91;
+  --yellow-soft: rgba(240, 207, 145, 0.13);
+  --blue: #b2c8f5;
+  --blue-soft: rgba(178, 200, 245, 0.13);
+  --sidebar-width: 284px;
+}
+
+body {
+  background: #121720;
+  background-image:
+    radial-gradient(circle at 14% 6%, rgba(150, 226, 213, 0.15), transparent 25rem),
+    radial-gradient(circle at 88% 82%, rgba(178, 200, 245, 0.13), transparent 29rem);
+}
+
+.app-shell {
+  background:
+    linear-gradient(115deg, rgba(13, 17, 24, 0.93), rgba(18, 23, 32, 0.76)),
+    repeating-linear-gradient(90deg, transparent 0 79px, rgba(255, 255, 255, 0.018) 80px);
+}
+
+.sidebar {
+  width: var(--sidebar-width) !important;
+  border-right: 1px solid rgba(219, 233, 247, 0.14);
+  background:
+    linear-gradient(165deg, rgba(25, 34, 47, 0.98), rgba(15, 20, 29, 0.98));
+  box-shadow: 16px 0 60px rgba(0, 0, 0, 0.18);
+}
+
+.sidebar-brand {
+  height: 98px;
+  min-height: 98px;
+  padding: 0 24px;
+  border-bottom-color: rgba(219, 233, 247, 0.12);
+  background: linear-gradient(105deg, rgba(150, 226, 213, 0.13), transparent 68%);
+}
+
+.sidebar-system {
+  margin: 22px 16px 14px;
+  min-height: 64px;
+  padding: 13px 14px;
+  border: 1px solid rgba(150, 226, 213, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(120deg, rgba(150, 226, 213, 0.13), rgba(178, 200, 245, 0.06));
+}
+
+.sidebar-system strong { color: var(--cyan); font-size: 10px; }
+.sidebar-system small { color: #afbbc9; font-size: 9px; }
+
+.nav-section-title {
+  margin: 20px 22px 9px;
+  color: #8fa2b7;
+  font-size: 9px;
+  letter-spacing: 1.35px;
+}
+
+.nav-item {
+  min-height: 44px;
+  margin: 2px 12px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: #bac6d5;
+}
+
+.nav-item:hover {
+  border-color: rgba(219, 233, 247, 0.12);
+  background: rgba(255, 255, 255, 0.055);
+  color: #fff;
+}
+
+.nav-item.active {
+  border-color: rgba(150, 226, 213, 0.32);
+  background: linear-gradient(90deg, rgba(150, 226, 213, 0.19), rgba(150, 226, 213, 0.035));
+  color: #f9ffff;
+}
+
+.nav-item.active .nav-icon { color: var(--cyan); }
+.nav-active-line { display: none; }
+
+.sidebar-bottom {
+  padding: 14px 16px 18px;
+  border-top-color: rgba(219, 233, 247, 0.1);
+}
+
+.security-status {
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.logout-button {
+  border-radius: 12px;
+  border-color: rgba(241, 154, 154, 0.25);
+  background: rgba(241, 154, 154, 0.07);
+}
+
+.main-content { margin-left: var(--sidebar-width) !important; }
+
+.topbar {
+  height: 82px;
+  padding: 0 40px;
+  border-bottom-color: rgba(219, 233, 247, 0.12);
+  background: rgba(18, 23, 32, 0.72);
+  backdrop-filter: blur(18px);
+}
+
+.breadcrumb span { color: var(--cyan); }
+.connection-status, .system-live {
+  border: 1px solid rgba(168, 219, 145, 0.24);
+  border-radius: 999px;
+  background: rgba(168, 219, 145, 0.09);
+  color: #c8f2b4;
+}
+
+.admin-avatar {
+  border: 2px solid rgba(150, 226, 213, 0.55);
+  background: linear-gradient(145deg, #587f89, #324054);
+}
+
+.content-area { padding: 38px 40px 56px; }
+
+.page-heading {
+  align-items: flex-end;
+  padding-bottom: 26px;
+  border-bottom: 1px solid rgba(219, 233, 247, 0.11);
+}
+
+.page-kicker, .panel-label, .card-label {
+  color: var(--cyan);
+  font-size: 10px;
+  letter-spacing: 1.45px;
+}
+
+.page-heading h1 {
+  max-width: 700px;
+  font-size: clamp(29px, 3.2vw, 45px);
+  letter-spacing: -1.7px;
+}
+
+.page-heading p { max-width: 640px; font-size: 14px; line-height: 1.65; }
+
+.dashboard-cards { gap: 16px; }
+
+.security-card,
+.dashboard-panel,
+.healthcare-panel,
+.module-placeholder {
+  border: 1px solid rgba(219, 233, 247, 0.13);
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(39, 50, 66, 0.88), rgba(26, 33, 46, 0.8));
+  box-shadow: 0 18px 36px rgba(3, 7, 14, 0.16);
+}
+
+.security-card { overflow: hidden; }
+.security-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 115px;
+  height: 115px;
+  border-radius: 0 0 0 100%;
+  background: rgba(150, 226, 213, 0.055);
+  pointer-events: none;
+}
+
+.score-card { border-color: rgba(150, 226, 213, 0.27); }
+.danger-card { border-color: rgba(241, 154, 154, 0.26); }
+.warning-card { border-color: rgba(240, 207, 145, 0.25); }
+.event-card { border-color: rgba(178, 200, 245, 0.25); }
+
+.card-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid rgba(219, 233, 247, 0.18);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.metric-value { font-size: 44px; letter-spacing: -2px; }
+.metric-footer { border-top-color: rgba(219, 233, 247, 0.1); }
+
+.dashboard-panel, .healthcare-panel { padding: 24px; }
+
+.panel-header h2, .panel-heading h2 { font-size: 20px; letter-spacing: -0.45px; }
+
+.users-table-wrapper {
+  border: 1px solid rgba(219, 233, 247, 0.12);
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.users-table thead { background: rgba(150, 226, 213, 0.08); }
+.users-table tbody tr:hover { background: rgba(150, 226, 213, 0.07); }
+.users-table th { color: var(--cyan); }
+
+.primary-action, .add-user-button {
+  border-radius: 12px;
+  border-color: transparent;
+  background: linear-gradient(120deg, #94d8cb, #a9c3ed);
+  color: #17202c;
+  box-shadow: 0 9px 24px rgba(150, 226, 213, 0.17);
+}
+
+.secondary-action, .cancel-button, .table-action { border-radius: 10px; }
+
+.healthcare-dashboard { padding: 0; }
+.healthcare-header {
+  padding: 32px;
+  border: 1px solid rgba(150, 226, 213, 0.2);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(178, 200, 245, 0.18), transparent 16rem),
+    linear-gradient(120deg, rgba(150, 226, 213, 0.15), rgba(31, 43, 59, 0.85));
+}
+
+.healthcare-header h1 { font-size: clamp(30px, 3.4vw, 46px); letter-spacing: -1.8px; }
+.healthcare-status { border-radius: 999px; background: rgba(255, 255, 255, 0.09); }
+
+.healthcare-stat-card {
+  border: 1px solid rgba(219, 233, 247, 0.13);
+  border-radius: 17px;
+  background: rgba(31, 41, 56, 0.82);
+}
+
+.healthcare-stat-card:hover { transform: translateY(-4px); border-color: rgba(150, 226, 213, 0.37); }
+.module-item { border-radius: 12px; }
+
+.module-placeholder {
+  min-height: 290px;
+  padding: 42px;
+  background:
+    radial-gradient(circle at 92% 5%, rgba(150, 226, 213, 0.12), transparent 19rem),
+    linear-gradient(145deg, rgba(39, 50, 66, 0.94), rgba(24, 31, 43, 0.9));
+}
+
+.module-icon {
+  width: 66px;
+  height: 66px;
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(150, 226, 213, 0.25), rgba(178, 200, 245, 0.17));
+}
+
+.modal-overlay { backdrop-filter: blur(9px); }
+.user-modal {
+  border: 1px solid rgba(219, 233, 247, 0.19);
+  border-radius: 20px;
+  background: #1c2634;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.4);
+}
+
+.modal-field input, .modal-field select {
+  border-radius: 11px;
+  border-color: rgba(219, 233, 247, 0.18);
+  background: rgba(12, 18, 28, 0.58);
+}
+
+@media (max-width: 900px) {
+  :root { --sidebar-width: 0px; }
+  .sidebar { width: 0 !important; }
+  .main-content { margin-left: 0 !important; }
+  .topbar, .content-area { padding-left: 20px; padding-right: 20px; }
+  .page-heading { align-items: flex-start; }
+}
